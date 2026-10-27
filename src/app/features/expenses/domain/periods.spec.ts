@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { Override, RecurringTemplate } from './models';
-import { dueDayLabel, nextDue, occurrencesFor, overrideKey, periodFor, recentPeriods, summarize } from './periods';
+import { amountAt, dueDayLabel, nextDue, occurrencesFor, overrideKey, periodFor, recentPeriods, summarize } from './periods';
 
 const settings = { payDay: 28, lastWorkday: false };
 const TODAY = '2026-10-24';
 
 const tpl = (p: Partial<RecurringTemplate>): RecurringTemplate => ({
   id: 't', kind: 'charge', label: 'x', amount: 10, every: 1, day: 1, startMonth: '2026-01',
-  method: 'Virement', category: 'logement', onPayday: false, ...p,
+  method: 'Virement', category: 'logement', onPayday: false, amounts: [], endDate: null, ...p,
 });
 
 describe('periodFor', () => {
@@ -66,6 +66,34 @@ describe('occurrencesFor', () => {
     const ov: Override = { templateId: 'sal', dueDate: '2026-09-28', amount: 2700 };
     const [o] = occurrencesFor(p, [t], new Map([[overrideKey('sal', '2026-09-28'), ov]]), TODAY);
     expect(o).toMatchObject({ amount: 2700, edited: true });
+  });
+});
+
+describe('historique des modèles', () => {
+  const p = periodFor(settings, TODAY);
+  const prev = recentPeriods(settings, TODAY, 2)[1];
+  const loyer = tpl({ id: 'loyer', day: 1, amount: 900, amounts: [{ fromDate: '2026-09-28', amount: 950 }] });
+
+  it('applique un changement de montant à partir de sa date d’effet seulement', () => {
+    expect(occurrencesFor(prev, [loyer], new Map(), TODAY)[0].amount).toBe(900);
+    expect(occurrencesFor(p, [loyer], new Map(), TODAY)[0].amount).toBe(950);
+  });
+
+  it('prend le dernier changement en vigueur', () => {
+    const t = tpl({ amount: 10, amounts: [{ fromDate: '2026-03-01', amount: 20 }, { fromDate: '2026-06-01', amount: 30 }] });
+    expect([amountAt(t, '2026-02-01'), amountAt(t, '2026-03-01'), amountAt(t, '2026-05-31'), amountAt(t, '2027-01-01')]).toEqual([10, 20, 20, 30]);
+  });
+
+  it('un ajustement ponctuel prime sur le montant versionné', () => {
+    const ov: Override = { templateId: 'loyer', dueDate: '2026-10-01', amount: 0 };
+    expect(occurrencesFor(p, [loyer], new Map([[overrideKey('loyer', '2026-10-01'), ov]]), TODAY)[0].amount).toBe(0);
+  });
+
+  it('un modèle arrêté garde ses échéances passées et perd les suivantes', () => {
+    const stopped = [tpl({ id: 'a', day: 1, endDate: '2026-10-24' }), tpl({ id: 'b', day: 25, endDate: '2026-10-24' })];
+    expect(occurrencesFor(p, stopped, new Map(), TODAY).map((o) => o.key)).toEqual(['a:2026-10-01']);
+    expect(occurrencesFor(prev, stopped, new Map(), TODAY)).toHaveLength(2);
+    expect(nextDue(stopped[1], p, TODAY)).toBeNull();
   });
 });
 

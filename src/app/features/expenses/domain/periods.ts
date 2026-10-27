@@ -22,6 +22,13 @@ export function overrideKey(templateId: string, due: string): string {
   return templateId + ':' + due;
 }
 
+/** Montant d'un modèle pour une échéance : le dernier changement en vigueur à cette date, sinon le montant initial. */
+export function amountAt(t: RecurringTemplate, due: string): number {
+  let amount = t.amount;
+  for (const c of t.amounts) if (c.fromDate <= due) amount = c.amount;
+  return amount;
+}
+
 /** Jour de salaire du mois m (0–11) de l'année y. */
 export function payDate(settings: PaySettings, y: number, m: number): Date {
   if (settings.lastWorkday) {
@@ -92,9 +99,10 @@ export function occurrencesFor(
       }
     }
     for (const due of dues) {
+      if (t.endDate && due > t.endDate) continue;
       const key = overrideKey(t.id, due);
       const ov = overrides.get(key);
-      out.push({ key, template: t, due, amount: ov ? ov.amount : t.amount, edited: !!ov, upcoming: due > today });
+      out.push({ key, template: t, due, amount: ov ? ov.amount : amountAt(t, due), edited: !!ov, upcoming: due > today });
     }
   }
   return out.sort((a, b) => a.due.localeCompare(b.due));
@@ -102,6 +110,12 @@ export function occurrencesFor(
 
 /** Prochaine échéance d'un modèle à partir d'aujourd'hui. */
 export function nextDue(t: RecurringTemplate, current: Period, today: string): string | null {
+  if (t.endDate && t.endDate < today) return null;
+  const due = upcomingDue(t, current, today);
+  return due && t.endDate && due > t.endDate ? null : due;
+}
+
+function upcomingDue(t: RecurringTemplate, current: Period, today: string): string | null {
   if (t.onPayday) return current.next;
   if (t.day == null) return null;
   const T = toDate(today);
