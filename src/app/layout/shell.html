@@ -1,0 +1,51 @@
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">MV</div><span>Ma vie</span></div>
+
+    <nav aria-label="Navigation principale" class="nav-group">
+      <a class="nav-item" routerLink="/" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">
+        <app-icon name="dashboard" /> Tableau de bord
+      </a>
+    </nav>
+
+    <div class="nav-group">
+      <span class="nav-caption">Modules</span>
+      <a class="nav-item" routerLink="/depenses" routerLinkActive="is-active">
+        <app-icon name="wallet" /><span class="grow">Dépenses</span>
+      </a>
+      <button type="button" class="nav-item" disabled>
+        <app-icon name="heart" /><span class="grow">Santé</span><span class="soon">Bientôt</span>
+      </button>
+      <button type="button" class="nav-item" disabled>
+        <app-icon name="target" /><span class="grow">Objectifs</span><span class="soon">Bientôt</span>
+      </button>
+    </div>
+
+    <div class="account">
+      <div class="avatar" aria-hidden="true">{{ auth.initial() }}</div>
+      <div class="grow">
+        <div class="name">{{ auth.displayName() }}</div>
+        <div class="small muted">Compte personnel</div>
+      </div>
+      <button type="button" class="icon-btn" aria-label="Se déconnecter" (click)="auth.signOut()">
+        <app-icon name="logout" />
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>Ma vie</span>
+        <span aria-hidden="true">/</span>
+        <span class="current">{{ pageTitle() }}</span>
+        @if (inExpenses() && subTitle()) {
+          <span aria-hidden="true">/</span>
+          <span class="sub">{{ subTitle() }}</span>
+        }
+      </div>
+      <span class="date">{{ todayLabel() }}</span>
+    </header>
+    <router-outlet />
+  </main>
+</div>

@@ -1,0 +1,63 @@
+<main class="auth-page">
+  <div class="auth-box">
+    <div class="brand">
+      <div class="logo">MV</div>
+      <div>
+        <h1>Ma vie</h1>
+        <p class="muted">
+          @switch (mode()) {
+            @case ('signin') { Connecte-toi pour accéder à ton hub }
+            @case ('signup') { Crée ton compte }
+            @case ('reset') { Réinitialise ton mot de passe }
+          }
+        </p>
+      </div>
+    </div>
+
+    <form class="card auth-card" (ngSubmit)="submit()">
+      @if (mode() === 'signup') {
+        <div class="field">
+          <label class="label" for="name">Prénom</label>
+          <input id="name" name="name" class="input" autocomplete="given-name" [(ngModel)]="displayName" required>
+        </div>
+      }
+      <div class="field">
+        <label class="label" for="email">Adresse e-mail</label>
+        <input id="email" name="email" class="input" type="email" placeholder="toi@exemple.be" autocomplete="email"
+               [(ngModel)]="email" required>
+      </div>
+      @if (mode() !== 'reset') {
+        <div class="field">
+          <div class="label-row">
+            <label class="label" for="pwd">Mot de passe</label>
+            @if (mode() === 'signin') {
+              <button type="button" class="link-btn small-link" (click)="setMode('reset')">Oublié ?</button>
+            }
+          </div>
+          <input id="pwd" name="pwd" class="input" type="password" placeholder="••••••••" minlength="6"
+                 [attr.autocomplete]="mode() === 'signup' ? 'new-password' : 'current-password'"
+                 [(ngModel)]="password" required>
+        </div>
+      }
+
+      @if (error()) { <p role="alert" class="alert">{{ error() }}</p> }
+      @if (info()) { <p role="status" class="info">{{ info() }}</p> }
+
+      <button type="submit" class="btn btn-primary full" [disabled]="busy()">
+        @switch (mode()) {
+          @case ('signin') { Se connecter }
+          @case ('signup') { Créer le compte }
+          @case ('reset') { Envoyer le lien }
+        }
+      </button>
+    </form>
+
+    <p class="switch">
+      @if (mode() === 'signin') {
+        Pas encore de compte ? <button type="button" class="link-btn small-link" (click)="setMode('signup')">Créer un compte</button>
+      } @else {
+        <button type="button" class="link-btn small-link" (click)="setMode('signin')">Retour à la connexion</button>
+      }
+    </p>
+  </div>
+</main>

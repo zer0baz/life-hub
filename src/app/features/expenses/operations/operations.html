@@ -1,0 +1,84 @@
+<div class="stack" style="gap: 16px">
+  <div class="chips">
+    <span class="caption">Période</span>
+    @for (p of periodChips(); track p.index) {
+      <button type="button" class="chip" [class.is-active]="periodIndex() === p.index" [attr.aria-pressed]="periodIndex() === p.index"
+              (click)="periodIndex.set(p.index)">{{ p.label }}</button>
+    }
+  </div>
+
+  <div class="filters">
+    <div class="search">
+      <label for="search" class="sr">Rechercher</label>
+      <app-icon name="search" [size]="16" />
+      <input id="search" class="input" type="search" placeholder="Rechercher un libellé…"
+             [ngModel]="search()" (ngModelChange)="search.set($event)">
+    </div>
+    <div class="select-cat">
+      <label for="cat-filter" class="sr">Catégorie</label>
+      <select id="cat-filter" class="input" [ngModel]="category()" (ngModelChange)="category.set($event)">
+        @for (c of categoryOptions; track c.id) { <option [value]="c.id">{{ c.label }}</option> }
+      </select>
+    </div>
+    <div class="select-type">
+      <label for="type-filter" class="sr">Type</label>
+      <select id="type-filter" class="input" [ngModel]="type()" (ngModelChange)="type.set($event)">
+        <option value="all">Tous les types</option>
+        <option value="income">Revenus</option>
+        <option value="charge">Charges récurrentes</option>
+        <option value="var">Dépenses variables</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-box">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th><th>Libellé</th><th>Catégorie</th><th>Paiement</th><th>Statut</th>
+          <th class="right">Montant</th><th style="width: 96px"><span class="sr">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of rows(); track r.key) {
+          <tr>
+            <td class="soft num" style="white-space: nowrap">{{ r.dateLabel }}</td>
+            <td class="label-cell">
+              {{ r.label }}
+              @if (r.isRecurring) { <span class="tag">récurrent</span> }
+              @if (r.edited) { <span class="tag">modifié</span> }
+            </td>
+            <td><span class="cat"><span class="dot dot-sm" [style.background]="r.color"></span>{{ r.catLabel }}</span></td>
+            <td class="soft">{{ r.method }}</td>
+            <td><span class="pill" [class.pill-due]="r.upcoming" [class.pill-paid]="!r.upcoming">{{ r.statusLabel }}</span></td>
+            <td class="right">
+              @if (r.isRecurring) {
+                <app-override-editor [row]="r" [showPencil]="false"
+                                     [editing]="editKey() === r.key" (editingChange)="editKey.set($event ? r.key : null)" />
+              } @else {
+                <strong class="num" [class.pos]="r.isIncome">{{ r.amountLabel }}</strong>
+              }
+            </td>
+            <td class="right" style="padding-top: 4px; padding-bottom: 4px">
+              <button type="button" class="icon-btn" [attr.aria-label]="'Modifier ' + r.label" (click)="edit(r)">
+                <app-icon name="pencil" [size]="15" />
+              </button>
+              @if (!r.isRecurring) {
+                <button type="button" class="icon-btn danger" [attr.aria-label]="'Supprimer ' + r.label" (click)="remove(r)">
+                  <app-icon name="trash" [size]="16" />
+                </button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    @if (rows().length === 0) {
+      <p class="no-rows">Aucune opération ne correspond à ces filtres.</p>
+    }
+    <div class="table-foot">
+      <span class="soft">{{ rows().length }} opération(s)</span>
+      <span class="num"><strong class="pos">Entrées {{ totals().in }}</strong> · <strong>Sorties {{ totals().out }}</strong></span>
+    </div>
+  </div>
+</div>

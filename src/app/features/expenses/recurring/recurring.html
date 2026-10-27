@@ -1,0 +1,126 @@
+@let p = store.current().period;
+@let f = form();
+<div class="stack">
+  <section class="card">
+    <h2 class="card-title">Période de salaire</h2>
+    <div class="payday">
+      <div class="field">
+        <label class="label" for="payday">Jour du salaire</label>
+        <input id="payday" class="input" type="number" min="1" max="31" [disabled]="store.settings().lastWorkday"
+               [(ngModel)]="payDayInput" (change)="savePayDay()">
+      </div>
+      <label class="check">
+        <input type="checkbox" [checked]="store.settings().lastWorkday" (change)="toggleLastWorkday($any($event.target).checked)">
+        Dernier jour ouvrable du mois
+      </label>
+    </div>
+    <p class="hint" style="color: var(--ink-3)">
+      Période actuelle : du {{ fmtDate(p.start) }} au {{ fmtDate(p.end) }} — elle porte le nom du mois qu'elle finance :
+      <strong>{{ p.name }}</strong>.
+    </p>
+  </section>
+
+  <section class="card" style="gap: 16px">
+    <div class="card-head">
+      <div>
+        <h2 class="card-title">Modèles récurrents</h2>
+        <p class="hint" style="margin-top: 4px">Chaque modèle crée automatiquement ses occurrences dans les périodes concernées.</p>
+      </div>
+      <button type="button" class="btn btn-ghost" [attr.aria-expanded]="showForm()" (click)="toggleForm()">
+        {{ showForm() ? 'Fermer' : '+ Nouveau modèle' }}
+      </button>
+    </div>
+
+    @if (showForm()) {
+      <form class="tpl-form" (ngSubmit)="saveTemplate()">
+        <div class="chips" role="group" aria-label="Type">
+          <button type="button" class="chip" [class.is-active]="f.kind === 'charge'" [attr.aria-pressed]="f.kind === 'charge'" (click)="setKind('charge')">Charge</button>
+          <button type="button" class="chip" [class.is-active]="f.kind === 'income'" [attr.aria-pressed]="f.kind === 'income'" (click)="setKind('income')">Revenu</button>
+        </div>
+        <div class="grid-sm" style="gap: 14px">
+          <div class="field">
+            <label class="label" for="t-label">Libellé</label>
+            <input id="t-label" name="label" class="input" placeholder="Ex. Assurance auto" [ngModel]="f.label" (ngModelChange)="patch({ label: $event })">
+          </div>
+          <div class="field">
+            <label class="label" for="t-amount">Montant (€)</label>
+            <input id="t-amount" name="amount" class="input" inputmode="decimal" placeholder="0,00" [ngModel]="f.amount" (ngModelChange)="patch({ amount: $event })">
+          </div>
+          <div class="field">
+            <label class="label" for="t-every">Fréquence</label>
+            <select id="t-every" name="every" class="input" [ngModel]="f.every" (ngModelChange)="patch({ every: +$event })">
+              @for (q of frequencies; track q.every) { <option [ngValue]="q.every">{{ q.label }}</option> }
+            </select>
+          </div>
+          @if (f.kind === 'charge') {
+            <div class="field">
+              <label class="label" for="t-day">Jour d'échéance</label>
+              <input id="t-day" name="day" class="input" type="number" min="1" max="31" [ngModel]="f.day" (ngModelChange)="patch({ day: '' + $event })">
+            </div>
+          }
+          @if (f.every !== 1) {
+            <div class="field">
+              <label class="label" for="t-start">Premier mois</label>
+              <input id="t-start" name="start" class="input" type="month" [ngModel]="f.startMonth" (ngModelChange)="patch({ startMonth: $event })">
+            </div>
+          }
+          <div class="field">
+            <label class="label" for="t-method">Moyen de paiement</label>
+            <select id="t-method" name="method" class="input" [ngModel]="f.method" (ngModelChange)="patch({ method: $event })">
+              @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+            </select>
+          </div>
+        </div>
+        @if (f.kind === 'income') {
+          <p class="hint" style="color: var(--ink-3)">
+            Un revenu est daté au jour du salaire, au début de chaque période. Salaire variable ? Indique une moyenne :
+            tu ajusteras le montant réel sur la ligne du mois.
+          </p>
+        } @else {
+          <fieldset>
+            <legend>Catégorie</legend>
+            <div class="chips">
+              @for (c of categories; track c.id) {
+                <button type="button" class="chip" [class.is-active]="f.category === c.id" [attr.aria-pressed]="f.category === c.id" (click)="patch({ category: c.id })">
+                  <span class="dot dot-sm" [style.background]="c.color"></span>{{ c.label }}
+                </button>
+              }
+            </div>
+          </fieldset>
+        }
+        @if (formError()) { <p role="alert" class="alert">{{ formError() }}</p> }
+        <div class="end"><button type="submit" class="btn btn-primary" [disabled]="busy()">Créer le modèle</button></div>
+      </form>
+    }
+
+    <div style="overflow-x: auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Libellé</th><th>Type</th><th>Fréquence</th><th>Échéance</th><th>Prochaine</th>
+            <th class="right">Montant</th><th style="width: 48px"><span class="sr">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of rows(); track r.template.id) {
+            <tr>
+              <td><span class="name"><span class="dot dot-sm" [style.background]="r.color"></span>{{ r.template.label }}</span></td>
+              <td class="soft">{{ r.kindLabel }}</td>
+              <td class="soft">{{ r.freqLabel }}</td>
+              <td class="soft">{{ r.dayLabel }}</td>
+              <td class="soft" style="white-space: nowrap">{{ r.nextLabel }}</td>
+              <td class="right num" [class.pos]="r.isIncome"><strong>{{ r.amountLabel }}</strong></td>
+              <td class="right" style="padding-top: 4px; padding-bottom: 4px">
+                <button type="button" class="icon-btn danger" [attr.aria-label]="'Supprimer le modèle ' + r.template.label" (click)="remove(r.template)">
+                  <app-icon name="trash" [size]="16" />
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="7" class="muted" style="padding: 24px 0; text-align: center">Aucun modèle pour l'instant. Commence par ton salaire et ton loyer.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

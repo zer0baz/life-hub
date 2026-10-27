@@ -1,0 +1,86 @@
+@let s = store.current();
+@let k = store.currentStats();
+<div class="stack">
+  <div class="grid">
+    <section class="card">
+      <div>
+        <div class="hint">Reste disponible · {{ s.period.title }}</div>
+        <div class="big-number" [class.neg]="s.rest < 0">{{ fmt(s.rest) }}</div>
+        <div class="hint">Prochain salaire le {{ fmtDate(s.period.next) }} (dans {{ k.daysLeft }} jour(s)) · ≈ {{ fmt(k.perDay) }} / jour</div>
+      </div>
+      <div class="lines">
+        <div class="line">
+          <span>Revenus @if (s.extraTotal > 0) { <br><span class="small muted">dont {{ fmt(s.extraTotal) }} de revenus ponctuels</span> }</span>
+          <strong class="pos">+ {{ fmt(s.income) }}</strong>
+        </div>
+        <div class="line">
+          <span>Charges récurrentes<br><span class="small muted">dont {{ fmt(s.due) }} encore à venir</span></span>
+          <strong>{{ minus(s.chargesTotal) }}</strong>
+        </div>
+        <div class="line"><span>Dépenses variables</span><strong>{{ minus(s.varTotal) }}</strong></div>
+        <div class="line total"><span>Reste</span><span [class.neg]="s.rest < 0">{{ fmt(s.rest) }}</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Récurrent de la période</h2>
+        <a class="link-btn" routerLink="/depenses/recurrent">Gérer</a>
+      </div>
+      <div>
+        @for (o of recurring(); track o.key) {
+          <div class="list-row" style="padding: 8px 0; gap: 10px">
+            <span class="dot" [style.background]="o.color"></span>
+            <div class="grow">
+              <div class="title">
+                {{ o.label }}
+                @if (o.edited) { <span class="tag">modifié</span> }
+                @if (o.upcoming) { <span class="tag due">à venir</span> }
+              </div>
+              <div class="sub">{{ o.dateLabel }} · {{ o.freqLabel }}</div>
+            </div>
+            <app-override-editor [row]="o" [editing]="editKey() === o.key" (editingChange)="editKey.set($event ? o.key : null)" />
+          </div>
+        } @empty {
+          <p class="empty">Aucun revenu ni charge récurrente. <a routerLink="/depenses/recurrent">Crée ton premier modèle</a> (salaire, loyer…).</p>
+        }
+      </div>
+      <p class="small muted">Le crayon modifie le montant de cette ligne uniquement (ex. salaire réel du mois) ; le modèle n'est pas touché.</p>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Opérations ponctuelles récentes</h2>
+        <a class="link-btn" routerLink="/depenses/operations">Opérations</a>
+      </div>
+      <div>
+        @for (e of recentOps(); track e.key) {
+          <div class="list-row">
+            <span class="dot" [style.background]="e.color"></span>
+            <div class="grow"><div class="title">{{ e.label }}</div><div class="sub">{{ e.dateLabel }} · {{ e.catLabel }}</div></div>
+            <span class="amount" [class.pos]="e.isIncome">{{ e.amountLabel }}</span>
+          </div>
+        } @empty {
+          <p class="empty">Aucune opération ponctuelle sur cette période.</p>
+        }
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Sorties par catégorie</h2>
+        <a class="link-btn" routerLink="/depenses/statistiques">Statistiques</a>
+      </div>
+      @for (c of categories(); track c.label) {
+        <div class="bar-row">
+          <span class="name">{{ c.label }}</span>
+          <div class="track"><div [style.width.%]="c.pct" [style.background]="c.color"></div></div>
+          <span class="val">{{ c.amountLabel }}</span>
+        </div>
+      } @empty {
+        <p class="empty">Rien à afficher pour l'instant.</p>
+      }
+    </section>
+  </div>
+</div>

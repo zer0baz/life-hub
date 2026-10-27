@@ -1,0 +1,73 @@
+@let s = store.current();
+@let k = store.currentStats();
+<div class="page">
+  <div>
+    <h1 class="page-title">Bonjour {{ auth.displayName() }}</h1>
+    <p class="subtitle muted">Voici le résumé de tes modules.</p>
+  </div>
+  @if (store.error()) { <p role="alert" class="alert">{{ store.error() }}</p> }
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Dépenses · {{ s.period.title }}</h2>
+        <a class="link-btn" routerLink="/depenses">Ouvrir →</a>
+      </div>
+      <div>
+        <div class="hint">Reste disponible</div>
+        <div class="big-number" [class.neg]="s.rest < 0">{{ fmt(s.rest) }}</div>
+        <div class="hint">Prochain salaire dans {{ k.daysLeft }} jour(s) · ≈ {{ fmt(k.perDay) }} / jour</div>
+      </div>
+      <div class="stack" style="gap: 8px">
+        <div class="bar-head"><span>Revenus engagés</span><strong>{{ k.usedPct }} %</strong></div>
+        <div class="progress"><div [style.width.%]="k.usedPct > 100 ? 100 : k.usedPct" [style.background]="k.usedColor"></div></div>
+        <div class="hint">Dont {{ fmt(s.due) }} de charges encore à venir</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">À venir avant le salaire</h2>
+        <a class="link-btn" routerLink="/depenses">Détail</a>
+      </div>
+      <div>
+        @for (o of upcoming(); track o.key) {
+          <div class="list-row">
+            <span class="dot" [style.background]="o.color"></span>
+            <div class="grow"><div class="title">{{ o.label }}</div><div class="sub">{{ o.dateLabel }} · {{ o.method }}</div></div>
+            <span class="amount">{{ o.amountLabel }}</span>
+          </div>
+        } @empty {
+          <p class="empty">Plus aucune charge prévue sur cette période.</p>
+        }
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Dernières opérations</h2>
+        <a class="link-btn" routerLink="/depenses/operations">Tout voir</a>
+      </div>
+      <div>
+        @for (e of recent(); track e.key) {
+          <div class="list-row">
+            <span class="dot" [style.background]="e.color"></span>
+            <div class="grow"><div class="title">{{ e.label }}</div><div class="sub">{{ e.dateLabel }} · {{ e.catLabel }}</div></div>
+            <span class="amount" [class.pos]="e.isIncome">{{ e.amountLabel }}</span>
+          </div>
+        } @empty {
+          <p class="empty">Aucune opération sur cette période.</p>
+        }
+      </div>
+    </section>
+
+    <section class="card card-muted">
+      <h2 class="card-title soft">Santé</h2>
+      <p class="hint">Module à venir — sa carte résumé apparaîtra ici.</p>
+    </section>
+    <section class="card card-muted">
+      <h2 class="card-title soft">Objectifs</h2>
+      <p class="hint">Module à venir — sa carte résumé apparaîtra ici.</p>
+    </section>
+  </div>
+</div>

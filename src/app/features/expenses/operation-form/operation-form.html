@@ -1,0 +1,67 @@
+@let f = form();
+@if (notFound()) {
+  <p role="alert" class="alert">Cette opération n'existe pas ou a été supprimée.</p>
+} @else {
+  <form class="card" (ngSubmit)="save()">
+    <div>
+      <h2 class="form-title">{{ title() }}</h2>
+      <p class="hint" style="margin-top: 4px">
+        Pour une opération qui revient régulièrement (facture, salaire), crée plutôt un modèle dans
+        <a class="link-btn inline-link" routerLink="/depenses/recurrent">Récurrent</a>.
+      </p>
+    </div>
+
+    <div role="group" aria-label="Type d'opération" class="chips">
+      <button type="button" class="chip chip-lg" [class.is-active]="f.kind === 'expense'" [attr.aria-pressed]="f.kind === 'expense'"
+              (click)="setKind('expense')">Dépense</button>
+      <button type="button" class="chip chip-lg" [class.is-active]="f.kind === 'income'" [attr.aria-pressed]="f.kind === 'income'"
+              (click)="setKind('income')">Revenu</button>
+    </div>
+
+    <div class="field">
+      <label class="label" for="f-amount">Montant (€)</label>
+      <input id="f-amount" name="amount" class="input amount-input" inputmode="decimal" placeholder="0,00"
+             [ngModel]="f.amount" (ngModelChange)="patch({ amount: $event })">
+    </div>
+    <div class="field">
+      <label class="label" for="f-label">Libellé</label>
+      <input id="f-label" name="label" class="input"
+             [placeholder]="f.kind === 'income' ? 'Ex. vente vélo, remboursement mutuelle…' : 'Ex. Delhaize, plein d’essence…'"
+             [ngModel]="f.label" (ngModelChange)="patch({ label: $event })">
+    </div>
+    <fieldset>
+      <legend>Catégorie</legend>
+      <div class="chips">
+        @for (c of categories(); track c.id) {
+          <button type="button" class="chip" [class.is-active]="f.category === c.id" [attr.aria-pressed]="f.category === c.id"
+                  (click)="patch({ category: c.id })">
+            <span class="dot dot-sm" [style.background]="c.color"></span>{{ c.label }}
+          </button>
+        }
+      </div>
+    </fieldset>
+    <div class="grid-sm">
+      <div class="field">
+        <label class="label" for="f-date">Date</label>
+        <input id="f-date" name="date" class="input" type="date" [ngModel]="f.date" (ngModelChange)="patch({ date: $event })">
+      </div>
+      <div class="field">
+        <label class="label" for="f-method">Moyen de paiement</label>
+        <select id="f-method" name="method" class="input" [ngModel]="f.method" (ngModelChange)="patch({ method: $event })">
+          @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label class="label" for="f-note">Note <span class="muted" style="font-weight: 400">(facultatif)</span></label>
+      <textarea id="f-note" name="note" class="input" rows="3" [ngModel]="f.note" (ngModelChange)="patch({ note: $event })"></textarea>
+    </div>
+
+    @if (error()) { <p role="alert" class="alert">{{ error() }}</p> }
+
+    <div class="actions">
+      <button type="button" class="btn btn-ghost" (click)="cancel()">Annuler</button>
+      <button type="submit" class="btn btn-primary" [disabled]="busy()">{{ isEdit() ? 'Enregistrer les modifications' : 'Enregistrer' }}</button>
+    </div>
+  </form>
+}
