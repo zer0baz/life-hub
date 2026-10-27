@@ -4,11 +4,11 @@
 
     <nav aria-label="Navigation principale" class="nav-group">
       <a class="nav-item" routerLink="/" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">
-        <app-icon name="dashboard" /> Tableau de bord
+        <app-icon name="dashboard" /><span class="grow label">Tableau de bord</span><span class="grow label-short">Accueil</span>
       </a>
     </nav>
 
-    <div class="nav-group">
+    <div class="nav-group modules">
       <span class="nav-caption">Modules</span>
       <a class="nav-item" routerLink="/depenses" routerLinkActive="is-active">
         <app-icon name="wallet" /><span class="grow">Dépenses</span>

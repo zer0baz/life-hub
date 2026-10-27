@@ -38,7 +38,12 @@ export const EXPENSE_TABS = [
     </div>
   `,
   styles: `
-    .head { background: #fff; border-bottom: 1px solid var(--line); padding: 24px 32px 0; }
+    :host { display: block; }
+    /* Reste collée sous la topbar du shell pendant que le contenu défile. */
+    .head {
+      position: sticky; top: var(--topbar-h); z-index: 10;
+      background: #fff; border-bottom: 1px solid var(--line); padding: 24px 32px 0;
+    }
     .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
     .sub { margin-top: 4px; }
     .btn { text-decoration: none; }
@@ -51,7 +56,15 @@ export const EXPENSE_TABS = [
     }
     .body { padding: 28px 32px; max-width: 1200px; width: 100%; }
     .body .alert { margin-bottom: 16px; }
-    @media (max-width: 600px) { .head { padding: 20px 16px 0; } .body { padding: 20px 16px; } }
+    @media (max-width: 600px) {
+      .head { padding: 12px 16px 0; }
+      .page-title { font-size: 20px; }
+      .card-head .btn { min-height: 36px; padding: 0 12px; font-size: 13px; }
+      /* Onglets sur une ligne, défilables horizontalement, pour garder un en-tête compact. */
+      .tabs { flex-wrap: nowrap; gap: 0 20px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+      .tab { flex: none; white-space: nowrap; }
+      .body { padding: 20px 16px; }
+    }
   `,
 })
 export class ExpensesLayout {
