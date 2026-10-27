@@ -1,7 +1,9 @@
-.app { min-height: 100vh; display: flex; flex-wrap: wrap; align-items: stretch; }
+.app { min-height: 100vh; display: flex; align-items: flex-start; }
 
+// La navigation et la topbar restent en place : seul le contenu défile (scroll de la page).
 .sidebar {
-  flex: 1 0 240px; max-width: 100%; background: #fff; border-right: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 30; flex: none; width: 240px; height: 100vh; height: 100dvh; overflow-y: auto;
+  background: #fff; border-right: 1px solid var(--line);
   padding: 20px 14px; display: flex; flex-direction: column; gap: 24px;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
@@ -20,6 +22,7 @@
   &:disabled { cursor: default; background: transparent; color: var(--muted); }
 }
 .grow { flex: 1; min-width: 0; }
+.label-short { display: none; }
 .soon { font-size: 11px; font-weight: 600; color: var(--ink-3); background: #F3F4F6; padding: 2px 8px; border-radius: 999px; }
 
 .account { margin-top: auto; border-top: 1px solid var(--line); padding: 16px 0 0 8px; display: flex; align-items: center; gap: 10px; }
@@ -29,16 +32,40 @@
 }
 .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 
-.main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; }
+.main { flex: 1; min-width: 0; min-height: 100vh; display: flex; flex-direction: column; }
 .topbar {
-  min-height: 64px; padding: 0 32px; display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 4px 16px; background: #fff; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20; height: var(--topbar-h); padding: 0 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: #fff; border-bottom: 1px solid var(--line);
 }
-.crumbs { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); white-space: nowrap; }
+.crumbs span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .current { color: var(--ink); font-weight: 600; }
 .sub { color: var(--ink); }
-.date { font-size: 13px; color: var(--muted); }
+.date { flex: none; font-size: 13px; color: var(--muted); }
 
-@media (max-width: 600px) {
-  .topbar { padding: 12px 16px; }
+// Mobile : la sidebar devient une barre d'onglets fixée en bas de l'écran.
+@media (max-width: 799px) {
+  .main { min-height: 100dvh; padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom)); }
+  .topbar { padding: 0 16px; }
+  .date { display: none; }
+
+  .sidebar {
+    position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: auto; overflow: visible;
+    flex-direction: row; align-items: stretch; gap: 0; padding: 0 4px env(safe-area-inset-bottom);
+    border-right: 0; border-top: 1px solid var(--line);
+  }
+  .brand, .nav-caption, .soon, .label, .account .avatar, .account .grow { display: none; }
+  .label-short { display: inline; }
+  .nav-group { flex-direction: row; gap: 0; }
+  .modules { flex: 3; }
+  nav.nav-group { flex: 1; }
+  .nav-item {
+    flex: 1; flex-direction: column; justify-content: center; gap: 2px; min-height: var(--bottom-nav-h);
+    padding: 6px 2px; border-radius: 0; font-size: 11px; text-align: center;
+    &.is-active { background: transparent; }
+    .grow { flex: none; }
+  }
+  .account { margin: 0; padding: 0; border: 0; flex: 1; justify-content: center; }
+  .account .icon-btn { width: 100%; height: 100%; min-height: var(--bottom-nav-h); border-radius: 0; }
 }
