@@ -13,23 +13,25 @@ export class Auth {
   readonly ready = signal(false);
 
   readonly user = computed(() => this.session()?.user ?? null);
+  /** Prénom tiré du profil Google, sinon début de l'adresse e-mail. */
   readonly displayName = computed(() => {
     const u = this.user();
     if (!u) return '';
-    const name = (u.user_metadata?.['display_name'] as string | undefined)?.trim();
-    return name || (u.email ?? '').split('@')[0];
+    const meta = u.user_metadata ?? {};
+    const name = ((meta['full_name'] ?? meta['name'] ?? '') as string).trim();
+    return name.split(/\s+/)[0] || (u.email ?? '').split('@')[0];
   });
   readonly initial = computed(() => this.displayName().charAt(0).toUpperCase());
+  readonly avatarUrl = computed(() => (this.user()?.user_metadata?.['avatar_url'] as string | undefined) ?? null);
 
   constructor() {
-    this.supabase.auth.onAuthStateChange((event, session) => {
+    this.supabase.auth.onAuthStateChange((_event, session) => {
       this.session.set(session);
       this.ready.set(true);
-      if (event === 'PASSWORD_RECOVERY') this.router.navigateByUrl('/nouveau-mot-de-passe');
     });
   }
 
-  /** Résout dès que la session initiale est connue. */
+  /** Résout dès que la session initiale est connue (y compris au retour de Google). */
   async whenReady(): Promise<void> {
     if (this.ready()) return;
     const { data } = await this.supabase.auth.getSession();
@@ -37,29 +39,12 @@ export class Auth {
     this.ready.set(true);
   }
 
-  async signIn(email: string, password: string) {
-    const { error } = await this.supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-  }
-
-  async signUp(email: string, password: string, displayName: string) {
-    const { data, error } = await this.supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: displayName }, emailRedirectTo: window.location.origin },
+  /** Redirige vers Google ; au retour, Supabase ouvre la session et crée le compte s'il n'existe pas. */
+  async signInWithGoogle() {
+    const { error } = await this.supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
     });
-    if (error) throw error;
-    /** false : l'utilisateur doit confirmer son adresse avant de se connecter. */
-    return { signedIn: !!data.session };
-  }
-
-  async sendPasswordReset(email: string) {
-    const { error } = await this.supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-    if (error) throw error;
-  }
-
-  async updatePassword(password: string) {
-    const { error } = await this.supabase.auth.updateUser({ password });
     if (error) throw error;
   }
 

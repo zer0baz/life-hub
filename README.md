@@ -4,7 +4,7 @@ Hub personnel : un tableau de bord et des modules. Le premier module, **Dépense
 L'interface reprend la maquette « Life Hub — Prototype ».
 
 - Front : Angular 21 (composants standalone, signals, sans zone.js)
-- Back : Supabase (Auth + Postgres avec règles RLS)
+- Back : Supabase (Auth Google + Postgres avec règles RLS)
 
 ## Démarrer
 
@@ -13,8 +13,14 @@ L'interface reprend la maquette « Life Hub — Prototype ».
    (ou `supabase db push` avec la CLI Supabase).
 3. Dans `src/environments/environment.ts`, mets l'URL du projet et la clé `anon` / `publishable`
    (Project Settings › API). Cette clé est publique par conception : ce sont les règles RLS qui protègent les données.
-4. Dans Supabase › Authentication › URL Configuration, ajoute l'URL de l'app (ex. `http://localhost:4200`) aux Redirect URLs
-   (utilisée par la confirmation d'e-mail et le mot de passe oublié).
+4. Active la connexion Google (seule méthode de connexion de l'app) :
+   - Google Cloud Console › APIs & Services › écran de consentement OAuth : type « External », renseigne nom et e-mail.
+   - Credentials › Create credentials › OAuth client ID › « Web application » :
+     - Authorized JavaScript origins : `http://localhost:4200` (+ l'URL de prod plus tard)
+     - Authorized redirect URIs : `https://<ton-projet>.supabase.co/auth/v1/callback`
+   - Supabase › Authentication › Sign In / Providers › Google : active-le et colle le Client ID et le Client Secret.
+   - Supabase › Authentication › URL Configuration : Site URL = l'URL de l'app, et ajoute `http://localhost:4200` aux Redirect URLs.
+   - Désactive le provider « Email » dans Supabase : l'app ne propose plus que Google, et aucun compte ne pourra être créé autrement.
 5. Lance l'app :
 
 ```bash
@@ -31,7 +37,7 @@ src/app/
   core/            client Supabase, authentification, gardes de route, toast, icônes
   layout/          barre latérale + en-tête
   features/
-    auth/          connexion, création de compte, nouveau mot de passe
+    auth/          connexion Google
     dashboard/     tableau de bord
     expenses/
       domain/      logique pure : périodes de salaire, occurrences récurrentes, totaux (testée)

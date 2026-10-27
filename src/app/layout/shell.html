@@ -22,7 +22,11 @@
     </div>
 
     <div class="account">
-      <div class="avatar" aria-hidden="true">{{ auth.initial() }}</div>
+      @if (auth.avatarUrl(); as url) {
+        <img class="avatar" [src]="url" alt="" referrerpolicy="no-referrer">
+      } @else {
+        <div class="avatar" aria-hidden="true">{{ auth.initial() }}</div>
+      }
       <div class="grow">
         <div class="name">{{ auth.displayName() }}</div>
         <div class="small muted">Compte personnel</div>
