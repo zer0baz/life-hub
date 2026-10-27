@@ -4,9 +4,9 @@ import { Icon } from '../../../core/icon';
 import { Toast } from '../../../core/toast';
 import { ExpensesStore } from '../data/expenses-store';
 import { EXPENSE_CATEGORIES, FREQUENCIES, INCOME_COLOR, PAYMENT_METHODS, expenseCategory } from '../domain/constants';
-import { fmtDate, fmtMoney, parseAmount } from '../domain/format';
+import { amountToInput, fmtDate, fmtMoney, parseAmount } from '../domain/format';
 import { RecurringTemplate, TemplateKind } from '../domain/models';
-import { dueDayLabel, frequencyLabel, nextDue } from '../domain/periods';
+import { amountAt, dueDayLabel, frequencyLabel, nextDue, periodFor } from '../domain/periods';
 
 interface TemplateForm {
   kind: TemplateKind;
@@ -17,6 +17,14 @@ interface TemplateForm {
   startMonth: string;
   method: string;
   category: string;
+}
+
+/** Changement de montant en cours de saisie pour un modèle. */
+interface AmountEdit {
+  id: string;
+  amount: string;
+  /** Période à partir de laquelle le nouveau montant s'applique. */
+  from: 'current' | 'next';
 }
 
 @Component({
@@ -32,6 +40,11 @@ interface TemplateForm {
     .tpl-form { border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--surface-2); display: flex; flex-direction: column; gap: 16px; }
     .end { display: flex; justify-content: flex-end; }
     .table { min-width: 760px; }
+    .actions { display: inline-flex; gap: 2px; justify-content: flex-end; }
+    .amount-edit { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 4px 0 8px; }
+    .amount-edit .field { width: 180px; }
+    .amount-edit .field-wide { width: 260px; }
+    tr.stopped td { color: var(--ink-3); }
     .name { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
     .card .table th:first-child, .card .table td:first-child { padding-left: 0; }
     .card .table th:last-child, .card .table td:last-child { padding-right: 0; }
@@ -125,8 +138,55 @@ export class Recurring {
     }
   }
 
+  // --- Changement de montant (versionné) ---
+  readonly amountEdit = signal<AmountEdit | null>(null);
+  readonly editError = signal('');
+  readonly periodChoices = computed(() => {
+    const p = this.store.current().period;
+    return { current: p.title, next: periodFor(this.store.settings(), p.next).title };
+  });
+
+  startAmountEdit(t: RecurringTemplate) {
+    this.editError.set('');
+    this.amountEdit.set({ id: t.id, amount: amountToInput(amountAt(t, this.store.today())), from: 'current' });
+  }
+
+  patchAmountEdit(p: Partial<AmountEdit>) {
+    this.amountEdit.update((e) => (e ? { ...e, ...p } : e));
+  }
+
+  async saveAmount() {
+    const e = this.amountEdit();
+    if (!e) return;
+    const amount = parseAmount(e.amount);
+    if (!(amount > 0)) return this.editError.set('Indique un montant valide.');
+    const p = this.store.current().period;
+    this.busy.set(true);
+    try {
+      await this.store.setTemplateAmount(e.id, e.from === 'current' ? p.start : p.next, amount);
+      this.amountEdit.set(null);
+      this.toast.show('Montant mis à jour, les périodes précédentes ne changent pas');
+    } catch (err) {
+      this.editError.set((err as Error).message);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async stop(t: RecurringTemplate) {
+    if (!confirm(`Arrêter « ${t.label} » ? Les échéances déjà passées restent dans l'historique, celles à venir disparaissent.`)) return;
+    try {
+      await this.store.stopTemplate(t.id, this.store.today());
+      this.toast.show('Modèle arrêté');
+    } catch (e) {
+      this.toast.show('Échec : ' + (e as Error).message);
+    }
+  }
+
   async remove(t: RecurringTemplate) {
-    if (!confirm(`Supprimer le modèle « ${t.label} » ? Ses occurrences disparaîtront de toutes les périodes.`)) return;
+    const msg = `Supprimer définitivement « ${t.label} » ? Ses occurrences disparaîtront aussi des périodes passées.`
+      + (t.endDate ? '' : '\nPour simplement ne plus la compter, utilise plutôt « Arrêter ».');
+    if (!confirm(msg)) return;
     try {
       await this.store.removeTemplate(t.id);
       this.toast.show('Modèle supprimé');
@@ -139,19 +199,21 @@ export class Recurring {
     const current = this.store.current().period;
     const today = this.store.today();
     return [...this.store.templates()]
-      .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'income' ? -1 : 1))
+      .sort((a, b) => Number(!!a.endDate) - Number(!!b.endDate) || (a.kind === b.kind ? 0 : a.kind === 'income' ? -1 : 1))
       .map((t) => {
         const isIncome = t.kind === 'income';
         const nd = nextDue(t, current, today);
+        const stopped = !!t.endDate && t.endDate <= today;
         return {
           template: t,
           color: isIncome ? INCOME_COLOR : expenseCategory(t.category).color,
           kindLabel: isIncome ? 'Revenu' : 'Charge · ' + expenseCategory(t.category).label,
           freqLabel: frequencyLabel(t.every),
           dayLabel: dueDayLabel(t),
-          nextLabel: nd ? fmtDate(nd) : '—',
-          amountLabel: (isIncome ? '+ ' : '') + fmtMoney(t.amount),
+          nextLabel: stopped ? 'Arrêté le ' + fmtDate(t.endDate!) : nd ? fmtDate(nd) : '—',
+          amountLabel: (isIncome ? '+ ' : '') + fmtMoney(amountAt(t, nd ?? today)),
           isIncome,
+          stopped,
         };
       });
   });

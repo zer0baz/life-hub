@@ -12,7 +12,10 @@ export interface RecurringTemplate {
   id: string;
   kind: TemplateKind;
   label: string;
+  /** Montant initial, valable jusqu'au premier changement de `amounts`. */
   amount: number;
+  /** Changements de montant datés, triés par date d'effet croissante. */
+  amounts: AmountChange[];
   /** Tous les N mois : 1, 3, 6 ou 12. */
   every: number;
   /** Jour d'échéance (charges). Null pour un revenu, daté au jour du salaire. */
@@ -22,6 +25,14 @@ export interface RecurringTemplate {
   method: string;
   category: string | null;
   onPayday: boolean;
+  /** Modèle arrêté : aucune échéance après cette date. */
+  endDate: string | null;
+}
+
+/** Nouveau montant d'un modèle, appliqué aux échéances à partir de `fromDate`. */
+export interface AmountChange {
+  fromDate: string;
+  amount: number;
 }
 
 /** Montant ajusté pour une occurrence précise d'un modèle. */

@@ -9,7 +9,7 @@ L'interface reprend la maquette « Life Hub — Prototype ».
 ## Démarrer
 
 1. Crée un projet sur [supabase.com](https://supabase.com).
-2. Applique le schéma : colle `supabase/migrations/20261027000000_expenses.sql` dans l'éditeur SQL de Supabase et exécute-le
+2. Applique le schéma : colle les fichiers de `supabase/migrations/` dans l'éditeur SQL de Supabase et exécute-les dans l'ordre
    (ou `supabase db push` avec la CLI Supabase).
 3. Dans `src/environments/environment.ts`, mets l'URL du projet et la clé `anon` / `publishable`
    (Project Settings › API). Cette clé est publique par conception : ce sont les règles RLS qui protègent les données.

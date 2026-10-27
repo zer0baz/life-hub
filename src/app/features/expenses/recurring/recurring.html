@@ -98,24 +98,59 @@
         <thead>
           <tr>
             <th>Libellé</th><th>Type</th><th>Fréquence</th><th>Échéance</th><th>Prochaine</th>
-            <th class="right">Montant</th><th style="width: 48px"><span class="sr">Actions</span></th>
+            <th class="right">Montant</th><th style="width: 136px"><span class="sr">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           @for (r of rows(); track r.template.id) {
-            <tr>
+            <tr [class.stopped]="r.stopped">
               <td><span class="name"><span class="dot dot-sm" [style.background]="r.color"></span>{{ r.template.label }}</span></td>
               <td class="soft">{{ r.kindLabel }}</td>
               <td class="soft">{{ r.freqLabel }}</td>
               <td class="soft">{{ r.dayLabel }}</td>
               <td class="soft" style="white-space: nowrap">{{ r.nextLabel }}</td>
-              <td class="right num" [class.pos]="r.isIncome"><strong>{{ r.amountLabel }}</strong></td>
+              <td class="right num" [class.pos]="r.isIncome && !r.stopped"><strong>{{ r.amountLabel }}</strong></td>
               <td class="right" style="padding-top: 4px; padding-bottom: 4px">
-                <button type="button" class="icon-btn danger" [attr.aria-label]="'Supprimer le modèle ' + r.template.label" (click)="remove(r.template)">
-                  <app-icon name="trash" [size]="16" />
-                </button>
+                <span class="actions">
+                  @if (!r.stopped) {
+                    <button type="button" class="icon-btn" [attr.aria-label]="'Changer le montant de ' + r.template.label" (click)="startAmountEdit(r.template)">
+                      <app-icon name="pencil" [size]="16" />
+                    </button>
+                    <button type="button" class="icon-btn" [attr.aria-label]="'Arrêter le modèle ' + r.template.label" (click)="stop(r.template)">
+                      <app-icon name="stop" [size]="16" />
+                    </button>
+                  }
+                  <button type="button" class="icon-btn danger" [attr.aria-label]="'Supprimer le modèle ' + r.template.label" (click)="remove(r.template)">
+                    <app-icon name="trash" [size]="16" />
+                  </button>
+                </span>
               </td>
             </tr>
+            @if (amountEdit(); as e) {
+              @if (e.id === r.template.id) {
+                <tr>
+                  <td colspan="7">
+                    <form class="amount-edit" (ngSubmit)="saveAmount()">
+                      <div class="field">
+                        <label class="label" for="ae-amount">Nouveau montant (€)</label>
+                        <input id="ae-amount" name="amount" class="input" inputmode="decimal" [ngModel]="e.amount" (ngModelChange)="patchAmountEdit({ amount: $event })">
+                      </div>
+                      <div class="field field-wide">
+                        <label class="label" for="ae-from">À partir de</label>
+                        <select id="ae-from" name="from" class="input" [ngModel]="e.from" (ngModelChange)="patchAmountEdit({ from: $event })">
+                          <option value="current">{{ periodChoices().current }} (en cours)</option>
+                          <option value="next">{{ periodChoices().next }}</option>
+                        </select>
+                      </div>
+                      <button type="submit" class="btn btn-primary" [disabled]="busy()">Enregistrer</button>
+                      <button type="button" class="btn btn-ghost" (click)="amountEdit.set(null)">Annuler</button>
+                    </form>
+                    <p class="hint" style="color: var(--ink-3)">Les périodes précédentes gardent leur montant.</p>
+                    @if (editError()) { <p role="alert" class="alert">{{ editError() }}</p> }
+                  </td>
+                </tr>
+              }
+            }
           } @empty {
             <tr><td colspan="7" class="muted" style="padding: 24px 0; text-align: center">Aucun modèle pour l'instant. Commence par ton salaire et ton loyer.</td></tr>
           }
