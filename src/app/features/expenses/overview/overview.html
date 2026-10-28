@@ -19,6 +19,9 @@
         </div>
         <div class="line"><span>Dépenses variables</span><strong>{{ minus(s.varTotal) }}</strong></div>
         <div class="line total"><span>Reste</span><span [class.neg]="s.rest < 0">{{ fmt(s.rest) }}</span></div>
+        @if (s.offBudgetTotal > 0) {
+          <div class="line"><span class="muted">Payé via d'autres comptes<br><span class="small">hors budget, non déduit du reste</span></span><span class="muted">{{ fmt(s.offBudgetTotal) }}</span></div>
+        }
       </div>
     </section>
 

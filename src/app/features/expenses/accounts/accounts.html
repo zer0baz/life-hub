@@ -1,0 +1,121 @@
+@let f = form();
+<div class="stack">
+  <section class="card">
+    <h2 class="card-title">Compte principal</h2>
+    <div class="grid-sm" style="gap: 14px">
+      <div class="field">
+        <label class="label" for="main-label">Nom</label>
+        <input id="main-label" class="input" [placeholder]="mainAccountLabel" [(ngModel)]="mainLabelInput" (change)="saveMainLabel()">
+      </div>
+      <div class="field">
+        <label class="label" for="main-method">Moyen de paiement par défaut</label>
+        <select id="main-method" class="input" [ngModel]="store.mainAccount().defaultMethod" (ngModelChange)="saveMainMethod($event)">
+          @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+        </select>
+      </div>
+    </div>
+    <p class="hint">
+      C'est ton budget salaire : par défaut, toute opération y est rattachée et compte dans le reste de la période.
+    </p>
+  </section>
+
+  <section class="card" style="gap: 16px">
+    <div class="card-head">
+      <div>
+        <h2 class="card-title">Autres comptes</h2>
+        <p class="hint" style="margin-top: 4px">
+          Une opération payée depuis un de ces comptes reste visible, mais n'impacte pas le budget.
+        </p>
+      </div>
+      <button type="button" class="btn btn-ghost" [attr.aria-expanded]="showForm()" (click)="toggleForm()">
+        {{ showForm() ? 'Fermer' : '+ Nouveau compte' }}
+      </button>
+    </div>
+
+    @if (showForm()) {
+      <form class="acc-form" (ngSubmit)="add()">
+        <div class="grid-sm" style="gap: 14px">
+          <div class="field">
+            <label class="label" for="a-label">Nom</label>
+            <input id="a-label" name="label" class="input" placeholder="Ex. Compte épargne, Monizze…" [ngModel]="f.label" (ngModelChange)="patch({ label: $event })">
+          </div>
+          <div class="field">
+            <label class="label" for="a-kind">Type</label>
+            <select id="a-kind" name="kind" class="input" [ngModel]="f.kind" (ngModelChange)="patch({ kind: $event })">
+              @for (k of kinds; track k.id) { <option [value]="k.id">{{ k.label }}</option> }
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="a-method">Moyen de paiement par défaut</label>
+            @if (fixedMethods[f.kind]; as fixed) {
+              <input id="a-method" class="input" [value]="fixed" disabled>
+            } @else {
+              <select id="a-method" name="method" class="input" [ngModel]="f.defaultMethod" (ngModelChange)="patch({ defaultMethod: $event })">
+                @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+              </select>
+            }
+          </div>
+        </div>
+        @if (formError()) { <p role="alert" class="alert">{{ formError() }}</p> }
+        <div class="end"><button type="submit" class="btn btn-primary" [disabled]="busy()">Créer le compte</button></div>
+      </form>
+    }
+
+    <div>
+      @for (r of active(); track r.account.id) {
+        <div class="list-row">
+          @let e = editing();
+          @if (e?.id === r.account.id) {
+            <form class="rename" (ngSubmit)="saveEdit()">
+              <label class="sr" [attr.for]="'ed-label-' + r.account.id">Nom</label>
+              <input [id]="'ed-label-' + r.account.id" name="label" class="input" [ngModel]="e!.label" (ngModelChange)="patchEdit({ label: $event })">
+              @if (!fixedMethods[r.account.kind]) {
+                <label class="sr" [attr.for]="'ed-method-' + r.account.id">Moyen de paiement par défaut</label>
+                <select [id]="'ed-method-' + r.account.id" name="method" class="input" [ngModel]="e!.defaultMethod" (ngModelChange)="patchEdit({ defaultMethod: $event })">
+                  @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+                </select>
+              }
+              <button type="submit" class="btn btn-primary btn-sm">Enregistrer</button>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="editing.set(null)">Annuler</button>
+            </form>
+          } @else {
+            <div class="grow">
+              <div class="title">{{ r.account.label }}</div>
+              <div class="sub">{{ kindLabel(r.account.kind) }} · {{ fixedMethods[r.account.kind] ?? r.account.defaultMethod }} · {{ store.accountUsage(r.account.id) }} opération(s)</div>
+            </div>
+            <div class="amount">{{ fmt(r.spent) }} <span class="small muted" style="font-weight: 400">cette période</span></div>
+            <span class="actions">
+              <button type="button" class="icon-btn" [attr.aria-label]="'Modifier ' + r.account.label" (click)="startEdit(r.account)">
+                <app-icon name="pencil" [size]="16" />
+              </button>
+              <button type="button" class="icon-btn danger" [attr.aria-label]="'Supprimer ' + r.account.label" (click)="remove(r.account)">
+                <app-icon name="trash" [size]="16" />
+              </button>
+            </span>
+          }
+        </div>
+      } @empty {
+        <p class="empty">Aucun autre compte pour l'instant.</p>
+      }
+    </div>
+
+    @if (archived().length) {
+      <div>
+        <button type="button" class="link-btn" [attr.aria-expanded]="showArchived()" (click)="showArchived.update((v) => !v)">
+          {{ showArchived() ? 'Masquer' : 'Afficher' }} les comptes archivés ({{ archived().length }})
+        </button>
+        @if (showArchived()) {
+          @for (a of archived(); track a.id) {
+            <div class="list-row archived">
+              <div class="grow">
+                <div class="title">{{ a.label }}</div>
+                <div class="sub">{{ kindLabel(a.kind) }} · {{ store.accountUsage(a.id) }} opération(s)</div>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="restore(a)">Restaurer</button>
+            </div>
+          }
+        }
+      </div>
+    }
+  </section>
+</div>

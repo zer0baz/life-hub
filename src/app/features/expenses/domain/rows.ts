@@ -21,6 +21,8 @@ export interface Row {
   upcoming: boolean;
   statusLabel: string;
   freqLabel: string;
+  /** Compte secondaire d'une opération hors budget ; vide pour le compte principal. */
+  offBudget: string;
   occurrence?: Occurrence;
   operation?: Operation;
 }
@@ -35,11 +37,12 @@ export function occurrenceRow(o: Occurrence): Row {
     key: o.key, date: o.due, dateLabel: fmtDate(o.due), label: o.template.label, category: o.template.category,
     catLabel: c.label, color: c.color, method: o.template.method, amount: o.amount,
     amountLabel: (isIncome ? '+ ' : '') + fmtMoney(o.amount), isIncome, isRecurring: true, edited: o.edited,
-    upcoming: o.upcoming, statusLabel: status(isIncome, o.upcoming), freqLabel: frequencyLabel(o.template.every), occurrence: o,
+    upcoming: o.upcoming, statusLabel: status(isIncome, o.upcoming), freqLabel: frequencyLabel(o.template.every), offBudget: '', occurrence: o,
   };
 }
 
-export function operationRow(x: Operation, today: string): Row {
+/** `account` : nom du compte secondaire, à fournir pour une opération hors budget. */
+export function operationRow(x: Operation, today: string, account = ''): Row {
   const isIncome = x.kind === 'income';
   const c = isIncome ? incomeCategory(x.category) : expenseCategory(x.category);
   const upcoming = x.date > today;
@@ -47,7 +50,7 @@ export function operationRow(x: Operation, today: string): Row {
     key: x.id, date: x.date, dateLabel: fmtDate(x.date), label: x.label, category: x.category,
     catLabel: c.label, color: c.color, method: x.method, amount: x.amount,
     amountLabel: (isIncome ? '+ ' : '') + fmtMoney(x.amount), isIncome, isRecurring: false, edited: false,
-    upcoming, statusLabel: status(isIncome, upcoming), freqLabel: '', operation: x,
+    upcoming, statusLabel: status(isIncome, upcoming), freqLabel: '', offBudget: account, operation: x,
   };
 }
 

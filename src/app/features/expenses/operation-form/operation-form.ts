@@ -15,12 +15,11 @@ interface FormState {
   date: string;
   method: string;
   note: string;
+  /** '' = compte principal. */
+  accountId: string;
 }
 
-const DEFAULTS: Record<OperationKind, Pick<FormState, 'category' | 'method'>> = {
-  expense: { category: 'alim', method: 'Bancontact' },
-  income: { category: 'vente', method: 'Virement' },
-};
+const DEFAULT_CATEGORY: Record<OperationKind, string> = { expense: 'alim', income: 'vente' };
 
 /** Ajout (route « ajouter ») ou modification (route « operations/:id ») d'une opération ponctuelle. */
 @Component({
@@ -51,6 +50,15 @@ export class OperationForm {
 
   readonly methods = PAYMENT_METHODS;
   readonly categories = computed(() => (this.form().kind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES));
+  readonly mainAccountLabel = computed(() => this.store.accountLabel(null));
+  /** Comptes actifs, plus le compte archivé de l'opération modifiée pour ne pas le perdre. */
+  readonly accounts = computed(() => {
+    const current = this.form().accountId;
+    return this.store.accounts().filter((a) => !a.archived || a.id === current)
+      .map((a) => ({ id: a.id, label: this.store.accountLabel(a.id) }));
+  });
+  /** Moyen imposé par le compte choisi (chèques repas…) : le champ est alors masqué. */
+  readonly fixedMethod = computed(() => this.store.fixedMethod(this.form().accountId || null));
   readonly isEdit = computed(() => !!this.id());
   readonly title = computed(() =>
     !this.isEdit() ? 'Nouvelle opération' : this.form().kind === 'income' ? 'Modifier le revenu' : 'Modifier la dépense');
@@ -65,7 +73,7 @@ export class OperationForm {
         if (!id) return this.form.set(this.empty());
         if (op) {
           this.notFound.set(false);
-          this.form.set({ kind: op.kind, amount: amountToInput(op.amount), label: op.label, category: op.category, date: op.date, method: op.method, note: op.note });
+          this.form.set({ kind: op.kind, amount: amountToInput(op.amount), label: op.label, category: op.category, date: op.date, method: op.method, note: op.note, accountId: op.accountId ?? '' });
         } else if (!loading) {
           this.notFound.set(true);
         }
@@ -74,7 +82,16 @@ export class OperationForm {
   }
 
   private empty(): FormState {
-    return { kind: 'expense', amount: '', label: '', date: this.store.today(), note: '', ...DEFAULTS.expense };
+    return {
+      kind: 'expense', amount: '', label: '', date: this.store.today(), note: '', accountId: '',
+      category: DEFAULT_CATEGORY.expense, method: this.methodFor('expense', ''),
+    };
+  }
+
+  /** Moyen proposé : celui imposé par le compte, sinon un virement pour un revenu, sinon le moyen par défaut du compte. */
+  private methodFor(kind: OperationKind, accountId: string): string {
+    const id = accountId || null;
+    return this.store.fixedMethod(id) ?? (kind === 'income' ? 'Virement' : this.store.defaultMethod(id));
   }
 
   patch(p: Partial<FormState>) {
@@ -82,7 +99,12 @@ export class OperationForm {
   }
 
   setKind(kind: OperationKind) {
-    if (this.form().kind !== kind) this.patch({ kind, ...DEFAULTS[kind] });
+    const f = this.form();
+    if (f.kind !== kind) this.patch({ kind, category: DEFAULT_CATEGORY[kind], method: this.methodFor(kind, f.accountId) });
+  }
+
+  setAccount(accountId: string) {
+    this.patch({ accountId, method: this.methodFor(this.form().kind, accountId) });
   }
 
   cancel() {
@@ -99,7 +121,7 @@ export class OperationForm {
     this.busy.set(true);
     try {
       await this.store.saveOperation(
-        { kind: f.kind, amount, label: f.label.trim(), category: f.category, date: f.date, method: f.method, note: f.note.trim() },
+        { kind: f.kind, amount, label: f.label.trim(), category: f.category, date: f.date, method: f.method, note: f.note.trim(), accountId: f.accountId || null },
         this.id(),
       );
       const inc = f.kind === 'income';

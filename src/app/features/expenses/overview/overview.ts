@@ -31,7 +31,11 @@ export class Overview {
   readonly recurring = computed(() => this.store.current().occurrences.map(occurrenceRow));
   readonly recentOps = computed(() => {
     const s = this.store.current();
-    return [...s.variables, ...s.extras].map((x) => operationRow(x, this.store.today())).sort(byDateDesc).slice(0, 5);
+    const today = this.store.today();
+    return [
+      ...[...s.variables, ...s.extras].map((x) => operationRow(x, today)),
+      ...s.offBudget.map((x) => operationRow(x, today, this.store.accountLabel(x.accountId))),
+    ].sort(byDateDesc).slice(0, 5);
   });
   readonly categories = computed(() => breakdown(this.store.current()));
 }

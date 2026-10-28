@@ -1,4 +1,4 @@
-import { Category } from './models';
+import { AccountKind, Category } from './models';
 
 export const EXPENSE_CATEGORIES: Category[] = [
   { id: 'alim', label: 'Alimentation', color: '#2F9E44' },
@@ -22,6 +22,27 @@ export const INCOME_CATEGORIES: Category[] = [
 export const INCOME_COLOR = '#2B8A3E';
 
 export const PAYMENT_METHODS = ['Bancontact', 'Carte de crédit', 'Virement', 'Domiciliation', 'Espèces'];
+
+export const MAIN_ACCOUNT_LABEL = 'Compte principal';
+
+export const ACCOUNT_KINDS: { id: AccountKind; label: string }[] = [
+  { id: 'bank', label: 'Compte bancaire' },
+  { id: 'meal_voucher', label: 'Chèques repas' },
+  { id: 'eco_voucher', label: 'Éco-chèques' },
+  { id: 'cash', label: 'Espèces' },
+  { id: 'other', label: 'Autre' },
+];
+
+/** Moyen imposé par le type de compte : le choix du moyen est alors masqué. */
+export const FIXED_METHODS: Partial<Record<AccountKind, string>> = {
+  meal_voucher: 'Chèques repas',
+  eco_voucher: 'Éco-chèques',
+  cash: 'Espèces',
+};
+
+export function accountKindLabel(kind: AccountKind): string {
+  return ACCOUNT_KINDS.find((k) => k.id === kind)?.label ?? 'Autre';
+}
 
 export const FREQUENCIES = [
   { every: 1, label: 'Mensuelle' },

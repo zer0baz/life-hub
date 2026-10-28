@@ -51,6 +51,7 @@ export class Operations {
     const all = [
       ...s.occurrences.map(occurrenceRow),
       ...[...s.variables, ...s.extras].map((x) => operationRow(x, today)),
+      ...s.offBudget.map((x) => operationRow(x, today, this.store.accountLabel(x.accountId))),
     ].sort(byDateDesc);
     const q = this.search().trim().toLowerCase();
     const cat = this.category();

@@ -24,6 +24,7 @@ export const routes: Routes = [
           { path: 'operations/:id', title: 'Modifier · Ma vie', loadComponent: () => import('./features/expenses/operation-form/operation-form').then((m) => m.OperationForm) },
           { path: 'ajouter', title: 'Nouvelle opération · Ma vie', loadComponent: () => import('./features/expenses/operation-form/operation-form').then((m) => m.OperationForm) },
           { path: 'recurrent', title: 'Récurrent · Ma vie', loadComponent: () => import('./features/expenses/recurring/recurring').then((m) => m.Recurring) },
+          { path: 'comptes', title: 'Comptes · Ma vie', loadComponent: () => import('./features/expenses/accounts/accounts').then((m) => m.Accounts) },
           { path: 'statistiques', title: 'Statistiques · Ma vie', loadComponent: () => import('./features/expenses/stats/stats').then((m) => m.Stats) },
         ],
       },

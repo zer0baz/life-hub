@@ -1,10 +1,18 @@
 export type TemplateKind = 'income' | 'charge';
 export type OperationKind = 'expense' | 'income';
+export type AccountKind = 'bank' | 'meal_voucher' | 'eco_voucher' | 'cash' | 'other';
 
 /** Réglages de la période de salaire d'un utilisateur. */
 export interface PaySettings {
   payDay: number;
   lastWorkday: boolean;
+}
+
+/** Compte principal (budget salaire), implicite : seuls son nom et son moyen par défaut sont réglables. */
+export interface MainAccount {
+  /** Null : libellé générique. */
+  label: string | null;
+  defaultMethod: string;
 }
 
 /** Modèle récurrent : génère une occurrence par échéance dans chaque période. */
@@ -52,6 +60,19 @@ export interface Operation {
   method: string;
   amount: number;
   note: string;
+  /** Compte secondaire ; null = compte principal (budget salaire). */
+  accountId: string | null;
+}
+
+/** Compte secondaire : ses opérations sont visibles mais hors budget. */
+export interface Account {
+  id: string;
+  label: string;
+  kind: AccountKind;
+  /** Moyen de paiement proposé à la saisie (ignoré si le type impose le sien). */
+  defaultMethod: string;
+  /** Compte archivé : masqué à la saisie, toujours affiché sur ses opérations. */
+  archived: boolean;
 }
 
 export interface Period {
@@ -83,6 +104,10 @@ export interface PeriodSummary {
   charges: Occurrence[];
   variables: Operation[];
   extras: Operation[];
+  /** Opérations payées depuis un compte secondaire : visibles, exclues du reste. */
+  offBudget: Operation[];
+  /** Dépenses hors budget de la période. */
+  offBudgetTotal: number;
   extraTotal: number;
   income: number;
   chargesTotal: number;

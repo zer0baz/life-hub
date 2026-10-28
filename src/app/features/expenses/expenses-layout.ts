@@ -9,6 +9,7 @@ export const EXPENSE_TABS = [
   { path: 'operations', label: 'Opérations' },
   { path: 'ajouter', label: 'Ajouter' },
   { path: 'recurrent', label: 'Récurrent' },
+  { path: 'comptes', label: 'Comptes' },
   { path: 'statistiques', label: 'Statistiques' },
 ];
 

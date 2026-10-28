@@ -105,13 +105,30 @@ describe('summarize', () => {
       [tpl({ id: 'sal', kind: 'income', day: null, onPayday: true, amount: 2000 }), tpl({ id: 'loyer', day: 1, amount: 900 }), tpl({ id: 'prox', day: 25, amount: 60 })],
       new Map(),
       [
-        { id: '1', kind: 'expense', date: '2026-10-10', label: 'Delhaize', category: 'alim', method: 'Bancontact', amount: 40, note: '' },
-        { id: '2', kind: 'income', date: '2026-10-11', label: 'Vente', category: 'vente', method: 'Virement', amount: 100, note: '' },
-        { id: '3', kind: 'expense', date: '2026-09-01', label: 'Hors période', category: 'alim', method: 'Bancontact', amount: 999, note: '' },
+        { id: '1', kind: 'expense', date: '2026-10-10', label: 'Delhaize', category: 'alim', method: 'Bancontact', amount: 40, note: '', accountId: null },
+        { id: '2', kind: 'income', date: '2026-10-11', label: 'Vente', category: 'vente', method: 'Virement', amount: 100, note: '', accountId: null },
+        { id: '3', kind: 'expense', date: '2026-09-01', label: 'Hors période', category: 'alim', method: 'Bancontact', amount: 999, note: '', accountId: null },
       ],
       TODAY,
     );
     expect(s).toMatchObject({ income: 2100, extraTotal: 100, chargesTotal: 960, varTotal: 40, due: 60, out: 1000, rest: 1100 });
+  });
+
+  it('exclut du reste les opérations payées depuis un compte secondaire', () => {
+    const p = periodFor(settings, TODAY);
+    const s = summarize(
+      p,
+      [tpl({ id: 'sal', kind: 'income', day: null, onPayday: true, amount: 2000 })],
+      new Map(),
+      [
+        { id: '1', kind: 'expense', date: '2026-10-10', label: 'Delhaize', category: 'alim', method: 'Bancontact', amount: 40, note: '', accountId: null },
+        { id: '2', kind: 'expense', date: '2026-10-12', label: 'Garage', category: 'transport', method: 'Bancontact', amount: 300, note: '', accountId: 'epargne' },
+      ],
+      TODAY,
+    );
+    expect(s).toMatchObject({ varTotal: 40, rest: 1960, offBudgetTotal: 300 });
+    expect(s.variables.map((x) => x.id)).toEqual(['1']);
+    expect(s.offBudget.map((x) => x.id)).toEqual(['2']);
   });
 });
 

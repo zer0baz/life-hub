@@ -140,8 +140,10 @@ export function summarize(
   const incomes = occurrences.filter((o) => o.template.kind === 'income');
   const charges = occurrences.filter((o) => o.template.kind === 'charge');
   const inPeriod = operations.filter((x) => x.date >= period.start && x.date <= period.end);
-  const variables = inPeriod.filter((x) => x.kind !== 'income');
-  const extras = inPeriod.filter((x) => x.kind === 'income');
+  const onBudget = inPeriod.filter((x) => x.accountId == null);
+  const offBudget = inPeriod.filter((x) => x.accountId != null);
+  const variables = onBudget.filter((x) => x.kind !== 'income');
+  const extras = onBudget.filter((x) => x.kind === 'income');
   const sum = (l: { amount: number }[]) => l.reduce((a, x) => a + x.amount, 0);
   const extraTotal = sum(extras);
   const income = sum(incomes) + extraTotal;
@@ -149,6 +151,7 @@ export function summarize(
   const varTotal = sum(variables);
   return {
     period, occurrences, incomes, charges, variables, extras, extraTotal, income, chargesTotal, varTotal,
+    offBudget, offBudgetTotal: sum(offBudget.filter((x) => x.kind !== 'income')),
     due: sum(charges.filter((o) => o.upcoming)),
     out: chargesTotal + varTotal,
     rest: income - chargesTotal - varTotal,

@@ -47,6 +47,7 @@
               {{ r.label }}
               @if (r.isRecurring) { <span class="tag">récurrent</span> }
               @if (r.edited) { <span class="tag">modifié</span> }
+              @if (r.offBudget) { <span class="tag">hors budget · {{ r.offBudget }}</span> }
             </td>
             <td><span class="cat"><span class="dot dot-sm" [style.background]="r.color"></span>{{ r.catLabel }}</span></td>
             <td class="soft">{{ r.method }}</td>
