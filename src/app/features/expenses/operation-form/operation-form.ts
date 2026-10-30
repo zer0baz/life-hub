@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Toast } from '../../../core/toast';
 import { ExpensesStore } from '../data/expenses-store';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_METHODS } from '../domain/constants';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_METHODS, accountKindLabel } from '../domain/constants';
 import { amountToInput, parseAmount } from '../domain/format';
 import { OperationKind } from '../domain/models';
 
@@ -55,7 +55,7 @@ export class OperationForm {
   readonly accounts = computed(() => {
     const current = this.form().accountId;
     return this.store.accounts().filter((a) => !a.archived || a.id === current)
-      .map((a) => ({ id: a.id, label: this.store.accountLabel(a.id) }));
+      .map((a) => ({ id: a.id, label: `${this.store.accountLabel(a.id)} · ${accountKindLabel(a.kind)}` }));
   });
   /** Moyen imposé par le compte choisi (chèques repas…) : le champ est alors masqué. */
   readonly fixedMethod = computed(() => this.store.fixedMethod(this.form().accountId || null));

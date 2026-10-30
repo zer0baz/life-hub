@@ -101,15 +101,15 @@ export class Recurring {
     }
   }
 
-  /** Salaires reportables : celui qui ouvre la période en cours, les deux suivants, puis les reports déjà faits. */
+  /** Salaires reportables : celui qui ouvre la période en cours et le suivant, plus un report déjà fait au-delà (pour pouvoir le rétablir). */
   readonly pays = computed(() => {
     const settings = this.store.settings();
     const [y, m] = this.store.current().period.payMonth.split('-').map(Number);
-    const months = [0, 1, 2].map((i) => {
+    const months = [0, 1].map((i) => {
       const k = y * 12 + m - 1 + i;
       return `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}`;
     });
-    for (const ym of Object.keys(settings.moved).sort()) if (!months.includes(ym)) months.push(ym);
+    for (const ym of Object.keys(settings.moved).sort()) if (ym > months[1]) months.push(ym);
     return months.map((ym) => {
       const info = payInfo(settings, ym);
       return { ...info, label: 'Salaire prévu le ' + fmtLongDate(info.regular), opens: periodFor(settings, info.actual).title };
