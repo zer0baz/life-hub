@@ -197,12 +197,38 @@ export function breakdown(summary: PeriodSummary): CategoryShare[] {
   const items = summary.charges
     .map((o) => ({ category: o.template.category, amount: o.amount }))
     .concat(summary.variables.map((x) => ({ category: x.category, amount: x.amount })));
-  const total = items.reduce((a, x) => a + x.amount, 0) || 1;
+  return shares(items, items.reduce((a, x) => a + x.amount, 0));
+}
+
+export interface OffBudgetAccount {
+  accountId: string;
+  total: number;
+  /** Part de ce compte dans le total hors budget. */
+  pct: number;
+  categories: CategoryShare[];
+}
+
+/** Dépenses hors budget (comptes secondaires) d'une période, par compte puis par catégorie. Les % portent sur le total hors budget. */
+export function offBudgetBreakdown(summary: PeriodSummary): OffBudgetAccount[] {
+  const expenses = summary.offBudget.filter((x) => x.kind !== 'income' && x.accountId != null);
+  const total = expenses.reduce((a, x) => a + x.amount, 0);
+  const ids = [...new Set(expenses.map((x) => x.accountId!))];
+  return ids
+    .map((accountId) => {
+      const items = expenses.filter((x) => x.accountId === accountId);
+      const sum = items.reduce((a, x) => a + x.amount, 0);
+      return { accountId, total: sum, pct: Math.round((sum / (total || 1)) * 100), categories: shares(items, total) };
+    })
+    .filter((x) => x.total > 0)
+    .sort((a, b) => b.total - a.total);
+}
+
+function shares(items: { category: string | null; amount: number }[], total: number): CategoryShare[] {
   return EXPENSE_CATEGORIES
     .map((c) => ({ c, sum: items.filter((x) => expenseCategory(x.category).id === c.id).reduce((a, x) => a + x.amount, 0) }))
     .filter((x) => x.sum > 0)
     .sort((a, b) => b.sum - a.sum)
-    .map((x) => ({ label: x.c.label, color: x.c.color, pct: Math.round((x.sum / total) * 100), amountLabel: fmtMoney(x.sum) }));
+    .map((x) => ({ label: x.c.label, color: x.c.color, pct: Math.round((x.sum / (total || 1)) * 100), amountLabel: fmtMoney(x.sum) }));
 }
 
 export function frequencyLabel(every: number): string {

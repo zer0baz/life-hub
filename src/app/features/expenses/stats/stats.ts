@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ExpensesStore } from '../data/expenses-store';
 import { fmtMoney } from '../domain/format';
-import { breakdown } from '../domain/periods';
+import { breakdown, offBudgetBreakdown } from '../domain/periods';
 
 @Component({
   selector: 'app-stats',
@@ -35,7 +35,13 @@ import { breakdown } from '../domain/periods';
         </div>
         <div class="kpi">
           <div class="hint">Sorties totales</div>
-          <div class="value">{{ fmt(s.out) }}</div>
+          <div class="value value-row">
+            {{ fmt(s.out) }}
+            @if (s.offBudgetTotal > 0) {
+              <span class="tag off-tag" title="Payé via d'autres comptes, non déduit du reste"
+                    aria-label="Payé via d'autres comptes, non déduit du reste">+{{ fmt(s.offBudgetTotal) }} hors budget</span>
+            }
+          </div>
           <div class="hint">{{ fmt(s.chargesTotal) }} récurrentes · {{ fmt(s.varTotal) }} variables</div>
         </div>
         <div class="kpi">
@@ -63,6 +69,31 @@ import { breakdown } from '../domain/periods';
           <p class="empty">Aucune sortie sur cette période.</p>
         }
       </section>
+
+      @if (s.offBudgetTotal > 0) {
+        <section class="card off-budget" style="border-radius: 12px">
+          <div class="card-head" style="align-items: baseline">
+            <h2 class="card-title">Hors budget · {{ s.period.name }}</h2>
+            <span class="hint">Payé via d'autres comptes, non déduit du reste</span>
+          </div>
+          @for (a of offBudget(); track a.accountId) {
+            <div class="account">
+              <div class="account-head">
+                <strong>{{ store.accountLabel(a.accountId) }}</strong>
+                <span class="muted">{{ a.pct }} % · {{ fmt(a.total) }}</span>
+              </div>
+              @for (c of a.categories; track c.label) {
+                <div class="bar-row">
+                  <span class="name"><span class="dot dot-sm" [style.background]="c.color"></span>{{ c.label }}</span>
+                  <div class="track" style="height: 10px"><div [style.width.%]="c.pct" [style.background]="c.color"></div></div>
+                  <span class="pct">{{ c.pct }} %</span>
+                  <span class="val">{{ c.amountLabel }}</span>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
     </div>
   `,
   styles: `
@@ -78,6 +109,13 @@ import { breakdown } from '../domain/periods';
     .bar-labels { display: flex; gap: 16px; span { flex: 1; text-align: center; font-size: 12px; color: var(--ink-3); } }
     .kpi { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
     .kpi .value { margin: 6px 0 2px; font-size: 22px; font-weight: 700; }
+    .value-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; min-width: 0; }
+    .off-tag { font-size: 12px; font-weight: 500; line-height: 18px; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .off-budget {
+      .account + .account { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .account-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+      .track > div, .dot { opacity: 0.55; }
+    }
   `,
 })
 export class Stats {
@@ -99,4 +137,5 @@ export class Stats {
 
   readonly biggest = computed(() => [...this.selected().variables].sort((a, b) => b.amount - a.amount).at(0));
   readonly categories = computed(() => breakdown(this.selected()));
+  readonly offBudget = computed(() => offBudgetBreakdown(this.selected()));
 }
