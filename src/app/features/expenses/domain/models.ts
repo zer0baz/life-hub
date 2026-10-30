@@ -49,6 +49,7 @@ export interface AmountChange {
 /** Montant ajusté pour une occurrence précise d'un modèle. */
 export interface Override {
   templateId: string;
+  /** Échéance, ou 1er du mois de paie pour un modèle « jour du salaire ». */
   dueDate: string;
   amount: number;
 }
@@ -97,6 +98,8 @@ export interface Occurrence {
   key: string;
   template: RecurringTemplate;
   due: string;
+  /** Date sous laquelle un montant ajusté est enregistré (voir overrideDate). */
+  overrideDate: string;
   amount: number;
   edited: boolean;
   upcoming: boolean;
