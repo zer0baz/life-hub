@@ -22,6 +22,14 @@ export function overrideKey(templateId: string, due: string): string {
   return templateId + ':' + due;
 }
 
+/**
+ * Date qui identifie une occurrence pour un montant ajusté. Pour un modèle « jour du salaire »,
+ * c'est le 1er du mois de paie : l'ajustement suit le salaire même si sa date change (report, règle).
+ */
+export function overrideDate(t: RecurringTemplate, period: Period, due: string): string {
+  return t.onPayday ? period.payMonth + '-01' : due;
+}
+
 /** Montant d'un modèle pour une échéance : le dernier changement en vigueur à cette date, sinon le montant initial. */
 export function amountAt(t: RecurringTemplate, due: string): number {
   let amount = t.amount;
@@ -115,7 +123,7 @@ export function occurrencesFor(
     const dues: string[] = [];
     const si = monthIndex(t.startMonth);
     if (t.onPayday) {
-      if (monthIndex(period.start.slice(0, 7)) >= si) dues.push(period.start);
+      if (monthIndex(period.payMonth) >= si) dues.push(period.start);
     } else if (t.day != null) {
       const k0 = s.getUTCFullYear() * 12 + s.getUTCMonth();
       const k1 = e.getUTCFullYear() * 12 + e.getUTCMonth();
@@ -127,9 +135,12 @@ export function occurrencesFor(
     }
     for (const due of dues) {
       if (t.endDate && due > t.endDate) continue;
-      const key = overrideKey(t.id, due);
+      const anchor = overrideDate(t, period, due);
+      const key = overrideKey(t.id, anchor);
       const ov = overrides.get(key);
-      out.push({ key, template: t, due, amount: ov ? ov.amount : amountAt(t, due), edited: !!ov, upcoming: due > today });
+      out.push({
+        key, template: t, due, overrideDate: anchor, amount: ov ? ov.amount : amountAt(t, due), edited: !!ov, upcoming: due > today,
+      });
     }
   }
   return out.sort((a, b) => a.due.localeCompare(b.due));

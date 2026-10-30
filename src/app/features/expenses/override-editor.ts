@@ -59,7 +59,7 @@ export class OverrideEditor {
     if (!occ || !(amount >= 0)) return;
     this.busy.set(true);
     try {
-      await this.store.setOverride(occ.template.id, occ.due, amount);
+      await this.store.setOverride(occ.template.id, occ.overrideDate, amount);
       this.editing.set(false);
     } catch (e) {
       this.toast.show('Échec : ' + (e as Error).message);

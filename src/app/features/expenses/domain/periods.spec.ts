@@ -100,9 +100,19 @@ describe('occurrencesFor', () => {
 
   it('applique un montant ajusté', () => {
     const t = tpl({ id: 'sal', kind: 'income', day: null, onPayday: true, amount: 2650 });
-    const ov: Override = { templateId: 'sal', dueDate: '2026-09-28', amount: 2700 };
-    const [o] = occurrencesFor(p, [t], new Map([[overrideKey('sal', '2026-09-28'), ov]]), TODAY);
-    expect(o).toMatchObject({ amount: 2700, edited: true });
+    const ov: Override = { templateId: 'sal', dueDate: '2026-09-01', amount: 2700 };
+    const [o] = occurrencesFor(p, [t], new Map([[overrideKey('sal', '2026-09-01'), ov]]), TODAY);
+    expect(o).toMatchObject({ due: '2026-09-28', overrideDate: '2026-09-01', amount: 2700, edited: true });
+  });
+
+  it('garde le montant ajusté du salaire si sa date change', () => {
+    const t = tpl({ id: 'sal', kind: 'income', day: null, onPayday: true, amount: 2650 });
+    const ov: Override = { templateId: 'sal', dueDate: '2026-12-01', amount: 2700 };
+    const map = new Map([[overrideKey('sal', '2026-12-01'), ov]]);
+    for (const s of [workday(2), workday(1), workday(2, { '2026-12': '2026-12-23' })]) {
+      const [o] = occurrencesFor(periodFor(s, '2027-01-10'), [t], map, TODAY);
+      expect(o).toMatchObject({ amount: 2700, edited: true });
+    }
   });
 });
 
