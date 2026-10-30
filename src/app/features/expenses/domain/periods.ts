@@ -29,35 +29,62 @@ export function amountAt(t: RecurringTemplate, due: string): number {
   return amount;
 }
 
-/** Jour de salaire du mois m (0–11) de l'année y. */
-export function payDate(settings: PaySettings, y: number, m: number): Date {
-  if (settings.lastWorkday) {
+const monthKey = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, '0')}`;
+const isWeekend = (dt: Date) => dt.getUTCDay() === 0 || dt.getUTCDay() === 6;
+
+/** Jour de salaire prévu par la règle (sans report ponctuel) pour le mois m (0–11) de l'année y. */
+export function regularPayDate(settings: PaySettings, y: number, m: number): Date {
+  if (settings.workdayRank != null) {
+    // Les jours fériés ne sont pas pris en compte : un report ponctuel couvre ces cas.
     const dt = new Date(Date.UTC(y, m, daysInMonth(y, m)));
-    while (dt.getUTCDay() === 0 || dt.getUTCDay() === 6) dt.setUTCDate(dt.getUTCDate() - 1);
-    return dt;
+    let left = Math.max(1, settings.workdayRank);
+    for (;;) {
+      if (!isWeekend(dt) && --left === 0) return dt;
+      dt.setUTCDate(dt.getUTCDate() - 1);
+    }
   }
   const day = settings.payDay >= 1 && settings.payDay <= 31 ? settings.payDay : 28;
   return new Date(Date.UTC(y, m, Math.min(day, daysInMonth(y, m))));
 }
 
+/** Jour de salaire réel du mois m (0–11) de l'année y : le report ponctuel s'il existe, sinon la règle. */
+export function payDate(settings: PaySettings, y: number, m: number): Date {
+  const moved = settings.moved[monthKey(y, m)];
+  return moved ? toDate(moved) : regularPayDate(settings, y, m);
+}
+
+/** Salaire normalement versé le mois `ym` (YYYY-MM) : date prévue, date réelle et bornes d'un report. */
+export function payInfo(settings: PaySettings, ym: string) {
+  const k = monthIndex(ym);
+  const at = (i: number) => payDate(settings, Math.floor(i / 12), i % 12);
+  const regular = toIso(regularPayDate(settings, Math.floor(k / 12), k % 12));
+  return {
+    month: ym,
+    regular,
+    actual: toIso(at(k)),
+    moved: settings.moved[ym] != null,
+    /** Un report doit rester strictement entre le salaire précédent et le suivant. */
+    min: toIso(new Date(at(k - 1).getTime() + DAY_MS)),
+    max: toIso(new Date(at(k + 1).getTime() - DAY_MS)),
+  };
+}
+
 /** Période de salaire contenant la date donnée. Elle porte le nom du mois qu'elle finance. */
 export function periodFor(settings: PaySettings, isoDate: string): Period {
   const t = toDate(isoDate);
-  let y = t.getUTCFullYear(), m = t.getUTCMonth();
-  let start = payDate(settings, y, m);
-  if (t < start) {
-    m -= 1;
-    if (m < 0) { m = 11; y -= 1; }
-    start = payDate(settings, y, m);
-  }
-  let ny = y, nm = m + 1;
-  if (nm > 11) { nm = 0; ny += 1; }
+  // Dernier salaire versé au plus tard ce jour-là ; un report peut le faire changer de mois.
+  let k = t.getUTCFullYear() * 12 + t.getUTCMonth() + 1;
+  while (payDate(settings, Math.floor(k / 12), k % 12) > t) k--;
+  const y = Math.floor(k / 12), m = k % 12;
+  const start = payDate(settings, y, m);
+  const ny = Math.floor((k + 1) / 12), nm = (k + 1) % 12;
   const next = payDate(settings, ny, nm);
   const end = new Date(next.getTime() - DAY_MS);
   const month = MONTHS[nm];
   const elide = /^[aeiouéâ]/i.test(month);
   return {
     start: toIso(start),
+    payMonth: monthKey(y, m),
     end: toIso(end),
     next: toIso(next),
     name: `${month} ${ny}`,

@@ -9,7 +9,7 @@ import { daysBetween, overrideKey, recentPeriods, summarize } from '../domain/pe
 /** Nombre de périodes affichées (courante + précédentes) dans les listes et statistiques. */
 export const PERIOD_COUNT = 4;
 
-const DEFAULT_SETTINGS: PaySettings = { payDay: 28, lastWorkday: false };
+const DEFAULT_SETTINGS: PaySettings = { payDay: 28, workdayRank: null, moved: {} };
 const DEFAULT_MAIN_ACCOUNT: MainAccount = { label: null, defaultMethod: 'Bancontact' };
 
 // Lignes telles que renvoyées par Supabase (snake_case, numeric en nombre ou chaîne).
@@ -25,6 +25,7 @@ interface OperationRow {
 interface AccountRow { id: string; label: string; kind: Account['kind']; default_method: string; archived_at: string | null }
 const ACCOUNT_COLUMNS = 'id, label, kind, default_method, archived_at';
 interface OverrideRow { template_id: string; due_date: string; amount: number | string }
+interface PayMoveRow { month: string; pay_date: string }
 interface AmountRow { template_id: string; from_date: string; amount: number | string }
 
 const toTemplate = (r: TemplateRow, amounts: AmountChange[] = []): RecurringTemplate => ({
@@ -100,16 +101,20 @@ export class ExpensesStore {
     this.error.set('');
     this.today.set(todayIso());
     try {
-      const [settings, templates, amounts, overrides, operations, accounts] = await Promise.all([
-        this.db.from('expense_settings').select('pay_day, last_workday, main_account_label, main_account_method').maybeSingle(),
+      const [settings, payMoves, templates, amounts, overrides, operations, accounts] = await Promise.all([
+        this.db.from('expense_settings').select('pay_day, workday_rank, main_account_label, main_account_method').maybeSingle(),
+        this.db.from('pay_date_overrides').select('month, pay_date'),
         this.db.from('recurring_templates').select('*').order('created_at'),
         this.db.from('recurring_amounts').select('template_id, from_date, amount').order('from_date'),
         this.db.from('recurring_overrides').select('template_id, due_date, amount'),
         this.db.from('operations').select('*').order('date', { ascending: false }),
         this.db.from('accounts').select(ACCOUNT_COLUMNS).order('created_at'),
       ]);
-      for (const r of [settings, templates, amounts, overrides, operations, accounts]) if (r.error) throw r.error;
-      this.settings.set(settings.data ? { payDay: settings.data.pay_day, lastWorkday: settings.data.last_workday } : DEFAULT_SETTINGS);
+      for (const r of [settings, payMoves, templates, amounts, overrides, operations, accounts]) if (r.error) throw r.error;
+      const moved = Object.fromEntries((payMoves.data as PayMoveRow[]).map((r) => [r.month, r.pay_date]));
+      this.settings.set(settings.data
+        ? { payDay: settings.data.pay_day, workdayRank: settings.data.workday_rank, moved }
+        : { ...DEFAULT_SETTINGS, moved });
       this.mainAccount.set(settings.data
         ? { label: settings.data.main_account_label, defaultMethod: settings.data.main_account_method }
         : DEFAULT_MAIN_ACCOUNT);
@@ -139,12 +144,25 @@ export class ExpensesStore {
     this.accounts.set([]);
   }
 
-  async saveSettings(patch: Partial<PaySettings>) {
+  async saveSettings(patch: Partial<Omit<PaySettings, 'moved'>>) {
     const next = { ...this.settings(), ...patch };
     this.settings.set(next);
-    const { error } = await this.db
-      .from('expense_settings')
-      .upsert({ user_id: this.auth.user()!.id, pay_day: next.payDay, last_workday: next.lastWorkday, updated_at: new Date().toISOString() });
+    const { error } = await this.db.from('expense_settings').upsert({
+      user_id: this.auth.user()!.id, pay_day: next.payDay, workday_rank: next.workdayRank,
+      last_workday: next.workdayRank === 1, updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+  }
+
+  /** Reporte ponctuellement le salaire du mois `month` (YYYY-MM) ; null rétablit la date prévue. */
+  async movePayDate(month: string, payDate: string | null) {
+    const moved = { ...this.settings().moved };
+    if (payDate) moved[month] = payDate;
+    else delete moved[month];
+    this.settings.update((s) => ({ ...s, moved }));
+    const { error } = payDate
+      ? await this.db.from('pay_date_overrides').upsert({ user_id: this.auth.user()!.id, month, pay_date: payDate })
+      : await this.db.from('pay_date_overrides').delete().eq('month', month);
     if (error) throw error;
   }
 

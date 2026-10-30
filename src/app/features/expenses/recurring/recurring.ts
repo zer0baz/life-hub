@@ -4,9 +4,9 @@ import { Icon } from '../../../core/icon';
 import { Toast } from '../../../core/toast';
 import { ExpensesStore } from '../data/expenses-store';
 import { EXPENSE_CATEGORIES, FREQUENCIES, INCOME_COLOR, PAYMENT_METHODS, expenseCategory } from '../domain/constants';
-import { amountToInput, fmtDate, fmtMoney, parseAmount } from '../domain/format';
+import { amountToInput, fmtDate, fmtLongDate, fmtMoney, parseAmount } from '../domain/format';
 import { RecurringTemplate, TemplateKind } from '../domain/models';
-import { amountAt, dueDayLabel, frequencyLabel, nextDue, periodFor } from '../domain/periods';
+import { amountAt, dueDayLabel, frequencyLabel, nextDue, payInfo, periodFor } from '../domain/periods';
 
 interface TemplateForm {
   kind: TemplateKind;
@@ -35,6 +35,11 @@ interface AmountEdit {
   styles: `
     .payday { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; }
     .payday .field { width: 160px; }
+    .payday .field-wide { width: 260px; }
+    .moves { display: flex; flex-direction: column; gap: 10px; }
+    .move { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .move .who { min-width: 220px; }
+    .move .input { width: 170px; }
     .check { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--ink-2); cursor: pointer; }
     .check input { width: 18px; height: 18px; accent-color: var(--accent); }
     .tpl-form { border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--surface-2); display: flex; flex-direction: column; gap: 16px; }
@@ -61,8 +66,17 @@ export class Recurring {
 
   // --- Période de salaire ---
   payDayInput = '';
+  rankInput = '';
   constructor() {
-    effect(() => (this.payDayInput = String(this.store.settings().payDay)));
+    effect(() => {
+      const s = this.store.settings();
+      this.payDayInput = String(s.payDay);
+      this.rankInput = String(s.workdayRank ?? 1);
+    });
+  }
+
+  async setRule(rule: 'fixed' | 'workday') {
+    await this.persist({ workdayRank: rule === 'workday' ? Math.max(1, parseInt(this.rankInput, 10) || 1) : null });
   }
 
   async savePayDay() {
@@ -71,11 +85,13 @@ export class Recurring {
     await this.persist({ payDay: v });
   }
 
-  async toggleLastWorkday(checked: boolean) {
-    await this.persist({ lastWorkday: checked });
+  async saveRank() {
+    const v = parseInt(this.rankInput, 10);
+    if (!(v >= 1 && v <= 10) || v === this.store.settings().workdayRank) return;
+    await this.persist({ workdayRank: v });
   }
 
-  private async persist(patch: { payDay?: number; lastWorkday?: boolean }) {
+  private async persist(patch: { payDay?: number; workdayRank?: number | null }) {
     try {
       await this.store.saveSettings(patch);
       this.toast.show('Période de salaire mise à jour');
@@ -84,6 +100,57 @@ export class Recurring {
       await this.store.load();
     }
   }
+
+  /** Salaires reportables : celui qui ouvre la période en cours, les deux suivants, puis les reports déjà faits. */
+  readonly pays = computed(() => {
+    const settings = this.store.settings();
+    const [y, m] = this.store.current().period.payMonth.split('-').map(Number);
+    const months = [0, 1, 2].map((i) => {
+      const k = y * 12 + m - 1 + i;
+      return `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}`;
+    });
+    for (const ym of Object.keys(settings.moved).sort()) if (!months.includes(ym)) months.push(ym);
+    return months.map((ym) => {
+      const info = payInfo(settings, ym);
+      return { ...info, label: 'Salaire prévu le ' + fmtLongDate(info.regular), opens: periodFor(settings, info.actual).title };
+    });
+  });
+
+  /** Dates en cours de saisie, enregistrées seulement au clic (la saisie au clavier passe par des dates intermédiaires). */
+  readonly moveDrafts = signal<Partial<Record<string, string>>>({});
+
+  draftMove(month: string, date: string) {
+    const actual = payInfo(this.store.settings(), month).actual;
+    this.moveDrafts.update(({ [month]: _, ...rest }) => (date && date !== actual ? { ...rest, [month]: date } : rest));
+  }
+
+  async movePay(month: string, date: string) {
+    const info = payInfo(this.store.settings(), month);
+    if (date < info.min || date > info.max) {
+      this.toast.show(`Date hors limites : entre le ${fmtDate(info.min)} et le ${fmtDate(info.max)}.`);
+      return;
+    }
+    this.draftMove(month, '');
+    await this.savePayMove(month, date === info.regular ? null : date);
+  }
+
+  async savePayMove(month: string, date: string | null) {
+    try {
+      await this.store.movePayDate(month, date);
+      this.toast.show(date ? 'Salaire reporté au ' + fmtDate(date) : 'Date prévue rétablie');
+    } catch (e) {
+      this.toast.show('Échec : ' + (e as Error).message);
+      await this.store.load();
+    }
+  }
+
+  readonly upcomingPays = computed(() => {
+    const p = this.store.current().period;
+    const settings = this.store.settings();
+    const out = [p.next];
+    while (out.length < 3) out.push(periodFor(settings, out[out.length - 1]).next);
+    return out.map(fmtDate).join(', ');
+  });
 
   // --- Modèles ---
   readonly showForm = signal(false);

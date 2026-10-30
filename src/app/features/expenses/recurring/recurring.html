@@ -3,21 +3,49 @@
 <div class="stack">
   <section class="card">
     <h2 class="card-title">Période de salaire</h2>
+    @let st = store.settings();
     <div class="payday">
-      <div class="field">
-        <label class="label" for="payday">Jour du salaire</label>
-        <input id="payday" class="input" type="number" min="1" max="31" [disabled]="store.settings().lastWorkday"
-               [(ngModel)]="payDayInput" (change)="savePayDay()">
+      <div class="field field-wide">
+        <label class="label" for="pay-rule">Règle</label>
+        <select id="pay-rule" class="input" [ngModel]="st.workdayRank == null ? 'fixed' : 'workday'" (ngModelChange)="setRule($event)">
+          <option value="fixed">Jour fixe du mois</option>
+          <option value="workday">Jour ouvrable avant la fin du mois</option>
+        </select>
       </div>
-      <label class="check">
-        <input type="checkbox" [checked]="store.settings().lastWorkday" (change)="toggleLastWorkday($any($event.target).checked)">
-        Dernier jour ouvrable du mois
-      </label>
+      @if (st.workdayRank == null) {
+        <div class="field">
+          <label class="label" for="payday">Jour du salaire</label>
+          <input id="payday" class="input" type="number" min="1" max="31" [(ngModel)]="payDayInput" (change)="savePayDay()">
+        </div>
+      } @else {
+        <div class="field">
+          <label class="label" for="pay-rank">N-ième (1 = dernier)</label>
+          <input id="pay-rank" class="input" type="number" min="1" max="10" [(ngModel)]="rankInput" (change)="saveRank()">
+        </div>
+      }
     </div>
     <p class="hint" style="color: var(--ink-3)">
       Période actuelle : du {{ fmtDate(p.start) }} au {{ fmtDate(p.end) }} — elle porte le nom du mois qu'elle finance :
-      <strong>{{ p.name }}</strong>.
+      <strong>{{ p.name }}</strong>. Prochains salaires : {{ upcomingPays() }}.
+      @if (st.workdayRank != null) { Les jours fériés ne sont pas pris en compte : utilise un report ponctuel. }
     </p>
+
+    <h3 class="label" style="margin-top: 8px">Report ponctuel</h3>
+    <div class="moves">
+      @for (x of pays(); track x.month) {
+        <div class="move">
+          <span class="who">{{ x.label }}<br><span class="hint" style="color: var(--ink-3)">Ouvre la {{ x.opens.toLowerCase() }}</span></span>
+          <input class="input" type="date" [attr.aria-label]="'Date réelle : ' + x.label" [min]="x.min" [max]="x.max"
+                 [value]="moveDrafts()[x.month] ?? x.actual" (input)="draftMove(x.month, $any($event.target).value)">
+          @if (moveDrafts()[x.month]; as d) {
+            <button type="button" class="btn btn-primary" (click)="movePay(x.month, d)">Enregistrer</button>
+          } @else if (x.moved) {
+            <button type="button" class="btn btn-ghost" (click)="savePayMove(x.month, null)">Rétablir</button>
+          }
+        </div>
+      }
+    </div>
+    <p class="hint" style="color: var(--ink-3)">Ne change que ce salaire-là : la période précédente s'allonge ou se raccourcit d'autant, la règle reste la même.</p>
   </section>
 
   <section class="card" style="gap: 16px">

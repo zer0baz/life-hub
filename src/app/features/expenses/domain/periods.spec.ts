@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { Override, RecurringTemplate } from './models';
-import { amountAt, dueDayLabel, nextDue, occurrencesFor, overrideKey, periodFor, recentPeriods, summarize } from './periods';
+import { Override, PaySettings, RecurringTemplate } from './models';
+import { amountAt, dueDayLabel, nextDue, occurrencesFor, overrideKey, payInfo, periodFor, recentPeriods, summarize } from './periods';
 
-const settings = { payDay: 28, lastWorkday: false };
+const settings: PaySettings = { payDay: 28, workdayRank: null, moved: {} };
+const workday = (rank: number, moved: Record<string, string> = {}): PaySettings => ({ payDay: 28, workdayRank: rank, moved });
 const TODAY = '2026-10-24';
 
 const tpl = (p: Partial<RecurringTemplate>): RecurringTemplate => ({
@@ -21,16 +22,52 @@ describe('periodFor', () => {
   });
 
   it('borne le jour au dernier jour du mois (salaire le 31)', () => {
-    expect(periodFor({ payDay: 31, lastWorkday: false }, '2026-03-01')).toMatchObject({ start: '2026-02-28', end: '2026-03-30' });
+    expect(periodFor({ ...settings, payDay: 31 }, '2026-03-01')).toMatchObject({ start: '2026-02-28', end: '2026-03-30' });
   });
 
   it('gère le dernier jour ouvrable', () => {
     // 31/10/2026 est un samedi → vendredi 30
-    expect(periodFor({ payDay: 28, lastWorkday: true }, '2026-10-30').start).toBe('2026-10-30');
+    expect(periodFor(workday(1), '2026-10-30').start).toBe('2026-10-30');
+  });
+
+  it('gère le N-ième jour ouvrable avant la fin du mois', () => {
+    // avant-dernier : jeu. 29/10 (31 = sam.), ven. 27/11 (30 = lun.), mer. 30/12 (31 = jeu.)
+    const starts = ['2026-10-29', '2026-11-27', '2026-12-30'].map((d) => periodFor(workday(2), d).start);
+    expect(starts).toEqual(['2026-10-29', '2026-11-27', '2026-12-30']);
+    expect(periodFor(workday(2), '2026-10-28')).toMatchObject({ start: '2026-09-29', end: '2026-10-28', next: '2026-10-29' });
+    // 3e avant la fin de février 2027 (dim. 28) : ven. 26, jeu. 25, mer. 24
+    expect(periodFor(workday(3), '2027-02-24').start).toBe('2027-02-24');
   });
 
   it('passe correctement de décembre à janvier', () => {
     expect(periodFor(settings, '2027-01-05')).toMatchObject({ start: '2026-12-28', next: '2027-01-28', name: 'janvier 2027' });
+  });
+});
+
+describe('report ponctuel du salaire', () => {
+  it('avance un salaire : la période précédente raccourcit, la suivante commence plus tôt', () => {
+    const s = workday(2, { '2026-12': '2026-12-23' });
+    expect(periodFor(s, '2026-12-24')).toMatchObject({ start: '2026-12-23', payMonth: '2026-12', name: 'janvier 2027' });
+    expect(periodFor(s, '2026-12-01')).toMatchObject({ start: '2026-11-27', end: '2026-12-22', next: '2026-12-23' });
+    expect(periodFor(s, '2027-01-20').start).toBe('2026-12-23');
+  });
+
+  it('retarde un salaire jusque dans le mois suivant', () => {
+    const s = workday(2, { '2026-10': '2026-11-02' });
+    expect(periodFor(s, '2026-11-01')).toMatchObject({ start: '2026-09-29', end: '2026-11-01', name: 'octobre 2026' });
+    expect(periodFor(s, '2026-11-02')).toMatchObject({ start: '2026-11-02', end: '2026-11-26', name: 'novembre 2026' });
+  });
+
+  it('ne touche que le mois concerné et date le revenu au jour réel', () => {
+    const s = workday(2, { '2026-12': '2026-12-23' });
+    expect(recentPeriods(s, '2027-01-10', 3).map((p) => p.start)).toEqual(['2026-12-23', '2026-11-27', '2026-10-29']);
+    const sal = tpl({ id: 'sal', kind: 'income', day: null, onPayday: true });
+    expect(occurrencesFor(periodFor(s, '2027-01-10'), [sal], new Map(), TODAY)[0].due).toBe('2026-12-23');
+  });
+
+  it('borne un report entre le salaire précédent et le suivant', () => {
+    expect(payInfo(workday(2), '2026-11')).toMatchObject({ regular: '2026-11-27', actual: '2026-11-27', moved: false, min: '2026-10-30', max: '2026-12-29' });
+    expect(payInfo(workday(2, { '2026-11': '2026-11-25' }), '2026-11')).toMatchObject({ actual: '2026-11-25', moved: true });
   });
 });
 

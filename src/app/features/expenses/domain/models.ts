@@ -5,7 +5,10 @@ export type AccountKind = 'bank' | 'meal_voucher' | 'eco_voucher' | 'cash' | 'ot
 /** Réglages de la période de salaire d'un utilisateur. */
 export interface PaySettings {
   payDay: number;
-  lastWorkday: boolean;
+  /** N-ième jour ouvrable avant la fin du mois (1 = dernier). Null : jour fixe `payDay`. */
+  workdayRank: number | null;
+  /** Reports ponctuels : 'YYYY-MM' du salaire normalement versé ce mois-là → date réelle. */
+  moved: Record<string, string>;
 }
 
 /** Compte principal (budget salaire), implicite : seuls son nom et son moyen par défaut sont réglables. */
@@ -77,6 +80,8 @@ export interface Account {
 
 export interface Period {
   start: string;
+  /** Mois (YYYY-MM) dont le salaire ouvre la période, clé d'un éventuel report. */
+  payMonth: string;
   end: string;
   /** Prochain jour de salaire (début de la période suivante). */
   next: string;
