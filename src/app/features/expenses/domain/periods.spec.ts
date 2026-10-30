@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Override, PaySettings, RecurringTemplate } from './models';
-import { amountAt, dueDayLabel, nextDue, occurrencesFor, overrideKey, payInfo, periodFor, recentPeriods, summarize } from './periods';
+import { amountAt, dueDayLabel, nextDue, occurrencesFor, offBudgetBreakdown, overrideKey, payInfo, periodFor, recentPeriods, summarize } from './periods';
 
 const settings: PaySettings = { payDay: 28, workdayRank: null, moved: {} };
 const workday = (rank: number, moved: Record<string, string> = {}): PaySettings => ({ payDay: 28, workdayRank: rank, moved });
@@ -166,6 +166,25 @@ describe('summarize', () => {
     expect(s).toMatchObject({ varTotal: 40, rest: 1960, offBudgetTotal: 300 });
     expect(s.variables.map((x) => x.id)).toEqual(['1']);
     expect(s.offBudget.map((x) => x.id)).toEqual(['2']);
+  });
+});
+
+describe('offBudgetBreakdown', () => {
+  it('regroupe les dépenses hors budget par compte puis catégorie, sans les rechargements', () => {
+    const p = periodFor(settings, TODAY);
+    const op = (id: string, kind: 'expense' | 'income', category: string, amount: number, accountId: string | null) =>
+      ({ id, kind, date: '2026-10-12', label: id, category, method: 'Bancontact', amount, note: '', accountId });
+    const s = summarize(p, [], new Map(), [
+      op('1', 'expense', 'alim', 40, null),
+      op('2', 'expense', 'transport', 300, 'epargne'),
+      op('3', 'expense', 'alim', 100, 'epargne'),
+      op('4', 'expense', 'alim', 100, 'commun'),
+      op('5', 'income', 'vente', 500, 'epargne'),
+    ], TODAY);
+    const r = offBudgetBreakdown(s);
+    expect(r.map((x) => [x.accountId, x.total, x.pct])).toEqual([['epargne', 400, 80], ['commun', 100, 20]]);
+    expect(r[0].categories.map((c) => c.pct)).toEqual([60, 20]);
+    expect(r[1].categories.map((c) => c.pct)).toEqual([20]);
   });
 });
 
