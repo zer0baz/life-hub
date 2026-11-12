@@ -8,7 +8,7 @@ const TODAY = '2026-10-24';
 
 const tpl = (p: Partial<RecurringTemplate>): RecurringTemplate => ({
   id: 't', kind: 'charge', label: 'x', amount: 10, every: 1, day: 1, startMonth: '2026-01',
-  method: 'Virement', category: 'logement', onPayday: false, amounts: [], endDate: null, ...p,
+  method: 'Virement', category: 'logement', onPayday: false, amounts: [], endDate: null, startDate: null, replaces: null, ...p,
 });
 
 describe('periodFor', () => {
@@ -206,5 +206,23 @@ describe('nextDue / dueDayLabel', () => {
 
   it('décrit les mois d’une charge trimestrielle', () => {
     expect(dueDayLabel(tpl({ every: 3, day: 26, startMonth: '2026-01' }))).toBe('Le 26 · janv., avr., juil., oct.');
+  });
+});
+
+describe('modification versionnée d’un modèle', () => {
+  // Avant-dernier jour ouvrable : octobre 29/09–28/10, novembre 29/10–26/11, décembre 27/11–29/12.
+  const s = workday(2);
+  const old = tpl({ id: 'old', day: 28, endDate: '2026-10-28' });
+  const next = tpl({ id: 'new', day: 26, startDate: '2026-10-29', replaces: 'old' });
+  const dues = (d: string) => occurrencesFor(periodFor(s, d), [old, next], new Map(), '2026-11-12').map((o) => `${o.template.id}:${o.due}`);
+
+  it("garde l'ancienne échéance avant la date d'effet et applique la nouvelle ensuite", () => {
+    expect(dues('2026-10-15')).toEqual(['old:2026-10-28']);
+    expect(dues('2026-11-12')).toEqual(['new:2026-11-26']);
+    expect(dues('2026-12-15')).toEqual(['new:2026-12-26']);
+  });
+
+  it("n'affiche pas d'échéance du nouveau modèle avant son début", () => {
+    expect(nextDue(tpl({ day: 5, startDate: '2026-12-01' }), periodFor(s, '2026-11-12'), '2026-11-12')).toBe('2026-12-05');
   });
 });

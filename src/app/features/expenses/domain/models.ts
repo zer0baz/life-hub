@@ -38,6 +38,10 @@ export interface RecurringTemplate {
   onPayday: boolean;
   /** Modèle arrêté : aucune échéance après cette date. */
   endDate: string | null;
+  /** Premier jour couvert (modèle issu d'une modification) : aucune échéance avant. */
+  startDate: string | null;
+  /** Modèle que celui-ci remplace depuis `startDate`. */
+  replaces: string | null;
 }
 
 /** Nouveau montant d'un modèle, appliqué aux échéances à partir de `fromDate`. */

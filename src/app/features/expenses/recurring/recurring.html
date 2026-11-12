@@ -141,7 +141,7 @@
               <td class="right" style="padding-top: 4px; padding-bottom: 4px">
                 <span class="actions">
                   @if (!r.stopped) {
-                    <button type="button" class="icon-btn" [attr.aria-label]="'Changer le montant de ' + r.template.label" (click)="startAmountEdit(r.template)">
+                    <button type="button" class="icon-btn" [attr.aria-label]="'Modifier le modèle ' + r.template.label" (click)="startEdit(r.template)">
                       <app-icon name="pencil" [size]="16" />
                     </button>
                     <button type="button" class="icon-btn" [attr.aria-label]="'Arrêter le modèle ' + r.template.label" (click)="stop(r.template)">
@@ -154,27 +154,71 @@
                 </span>
               </td>
             </tr>
-            @if (amountEdit(); as e) {
+            @if (edit(); as e) {
               @if (e.id === r.template.id) {
                 <tr>
                   <td colspan="7">
-                    <form class="amount-edit" (ngSubmit)="saveAmount()">
-                      <div class="field">
-                        <label class="label" for="ae-amount">Nouveau montant (€)</label>
-                        <input id="ae-amount" name="amount" class="input" inputmode="decimal" [ngModel]="e.amount" (ngModelChange)="patchAmountEdit({ amount: $event })">
+                    <form class="tpl-form" style="margin: 4px 0 8px" (ngSubmit)="saveEdit()">
+                      <div class="grid-sm" style="gap: 14px">
+                        <div class="field">
+                          <label class="label" for="te-label">Libellé</label>
+                          <input id="te-label" name="label" class="input" [ngModel]="e.label" (ngModelChange)="patchEdit({ label: $event })">
+                        </div>
+                        <div class="field">
+                          <label class="label" for="te-amount">Montant (€)</label>
+                          <input id="te-amount" name="amount" class="input" inputmode="decimal" [ngModel]="e.amount" (ngModelChange)="patchEdit({ amount: $event })">
+                        </div>
+                        <div class="field">
+                          <label class="label" for="te-every">Fréquence</label>
+                          <select id="te-every" name="every" class="input" [ngModel]="e.every" (ngModelChange)="patchEdit({ every: +$event })">
+                            @for (q of frequencies; track q.every) { <option [ngValue]="q.every">{{ q.label }}</option> }
+                          </select>
+                        </div>
+                        @if (!r.isIncome) {
+                          <div class="field">
+                            <label class="label" for="te-day">Jour d'échéance</label>
+                            <input id="te-day" name="day" class="input" type="number" min="1" max="31" [ngModel]="e.day" (ngModelChange)="patchEdit({ day: '' + $event })">
+                          </div>
+                        }
+                        @if (e.every !== 1 && e.every !== r.template.every) {
+                          <div class="field">
+                            <label class="label" for="te-start">Premier mois</label>
+                            <input id="te-start" name="start" class="input" type="month" [ngModel]="e.startMonth" (ngModelChange)="patchEdit({ startMonth: $event })">
+                          </div>
+                        }
+                        <div class="field">
+                          <label class="label" for="te-method">Moyen de paiement</label>
+                          <select id="te-method" name="method" class="input" [ngModel]="e.method" (ngModelChange)="patchEdit({ method: $event })">
+                            @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+                          </select>
+                        </div>
+                        <div class="field">
+                          <label class="label" for="te-from">À partir de</label>
+                          <select id="te-from" name="from" class="input" [ngModel]="e.from" (ngModelChange)="patchEdit({ from: $event })">
+                            <option value="current">{{ periodChoices().current }} (en cours)</option>
+                            <option value="next">{{ periodChoices().next }}</option>
+                          </select>
+                        </div>
                       </div>
-                      <div class="field field-wide">
-                        <label class="label" for="ae-from">À partir de</label>
-                        <select id="ae-from" name="from" class="input" [ngModel]="e.from" (ngModelChange)="patchAmountEdit({ from: $event })">
-                          <option value="current">{{ periodChoices().current }} (en cours)</option>
-                          <option value="next">{{ periodChoices().next }}</option>
-                        </select>
+                      @if (!r.isIncome) {
+                        <fieldset>
+                          <legend>Catégorie</legend>
+                          <div class="chips">
+                            @for (c of categories; track c.id) {
+                              <button type="button" class="chip" [class.is-active]="e.category === c.id" [attr.aria-pressed]="e.category === c.id" (click)="patchEdit({ category: c.id })">
+                                <span class="dot dot-sm" [style.background]="c.color"></span>{{ c.label }}
+                              </button>
+                            }
+                          </div>
+                        </fieldset>
+                      }
+                      <p class="hint" style="color: var(--ink-3)">Les périodes précédentes gardent les anciennes infos.</p>
+                      @if (editError()) { <p role="alert" class="alert">{{ editError() }}</p> }
+                      <div class="end" style="gap: 8px">
+                        <button type="button" class="btn btn-ghost" (click)="edit.set(null)">Annuler</button>
+                        <button type="submit" class="btn btn-primary" [disabled]="busy()">Enregistrer</button>
                       </div>
-                      <button type="submit" class="btn btn-primary" [disabled]="busy()">Enregistrer</button>
-                      <button type="button" class="btn btn-ghost" (click)="amountEdit.set(null)">Annuler</button>
                     </form>
-                    <p class="hint" style="color: var(--ink-3)">Les périodes précédentes gardent leur montant.</p>
-                    @if (editError()) { <p role="alert" class="alert">{{ editError() }}</p> }
                   </td>
                 </tr>
               }
