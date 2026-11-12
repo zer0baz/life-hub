@@ -64,14 +64,21 @@ export class OperationForm {
     !this.isEdit() ? 'Nouvelle opération' : this.form().kind === 'income' ? 'Modifier le revenu' : 'Modifier la dépense');
 
   constructor() {
-    // Pré-remplit le formulaire dès que l'opération est disponible (elle peut arriver après le chargement).
+    // Pré-remplit le formulaire une seule fois par opération (elle peut arriver après le chargement) :
+    // un rechargement ultérieur du store ne doit pas écraser la saisie en cours.
+    let filledFor: string | undefined;
     effect(() => {
       const id = this.id();
+      if (!id) {
+        filledFor = undefined;
+        return untracked(() => this.form.set(this.empty()));
+      }
+      if (filledFor === id) return;
       const loading = this.store.loading();
-      const op = id ? this.store.operations().find((x) => x.id === id) : undefined;
+      const op = this.store.operations().find((x) => x.id === id);
       untracked(() => {
-        if (!id) return this.form.set(this.empty());
         if (op) {
+          filledFor = id;
           this.notFound.set(false);
           this.form.set({ kind: op.kind, amount: amountToInput(op.amount), label: op.label, category: op.category, date: op.date, method: op.method, note: op.note, accountId: op.accountId ?? '' });
         } else if (!loading) {
