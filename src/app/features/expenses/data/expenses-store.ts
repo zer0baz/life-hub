@@ -94,7 +94,7 @@ export class ExpensesStore {
 
   constructor() {
     effect(() => {
-      const userId = this.auth.user()?.id;
+      const userId = this.auth.userId();
       untracked(() => (userId ? void this.load() : this.reset()));
     });
   }

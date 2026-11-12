@@ -13,6 +13,11 @@ export class Auth {
   readonly ready = signal(false);
 
   readonly user = computed(() => this.session()?.user ?? null);
+  /**
+   * Identifiant seul : Supabase réémet SIGNED_IN / TOKEN_REFRESHED (nouvel objet session) quand l'onglet
+   * redevient visible ; ce computed ne change que si l'utilisateur change vraiment.
+   */
+  readonly userId = computed(() => this.session()?.user.id ?? null);
   readonly displayName = computed(() => {
     const u = this.user();
     if (!u) return '';
