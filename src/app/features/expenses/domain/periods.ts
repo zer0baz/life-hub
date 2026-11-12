@@ -18,6 +18,11 @@ const dueInMonth = (k: number, day: number) => {
   return toIso(new Date(Date.UTC(y, m, Math.min(day, daysInMonth(y, m)))));
 };
 
+/** Veille d'une date ISO. */
+export function dayBefore(iso: string): string {
+  return toIso(new Date(toDate(iso).getTime() - DAY_MS));
+}
+
 export function overrideKey(templateId: string, due: string): string {
   return templateId + ':' + due;
 }
@@ -134,7 +139,7 @@ export function occurrencesFor(
       }
     }
     for (const due of dues) {
-      if (t.endDate && due > t.endDate) continue;
+      if ((t.endDate && due > t.endDate) || (t.startDate && due < t.startDate)) continue;
       const anchor = overrideDate(t, period, due);
       const key = overrideKey(t.id, anchor);
       const ov = overrides.get(key);
@@ -162,7 +167,7 @@ function upcomingDue(t: RecurringTemplate, current: Period, today: string): stri
   for (let k = base; k < base + 36; k++) {
     if (k < si || (k - si) % t.every !== 0) continue;
     const due = dueInMonth(k, t.day);
-    if (due >= today) return due;
+    if (due >= today && !(t.startDate && due < t.startDate)) return due;
   }
   return null;
 }

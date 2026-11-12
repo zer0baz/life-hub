@@ -4,7 +4,7 @@ import { Supabase } from '../../../core/supabase';
 import { todayIso } from '../domain/format';
 import { Account, AmountChange, MainAccount, Operation, Override, PaySettings, RecurringTemplate } from '../domain/models';
 import { FIXED_METHODS, MAIN_ACCOUNT_LABEL } from '../domain/constants';
-import { daysBetween, overrideKey, recentPeriods, summarize } from '../domain/periods';
+import { dayBefore, daysBetween, overrideKey, recentPeriods, summarize } from '../domain/periods';
 
 /** Nombre de périodes affichées (courante + précédentes) dans les listes et statistiques. */
 export const PERIOD_COUNT = 4;
@@ -16,7 +16,7 @@ const DEFAULT_MAIN_ACCOUNT: MainAccount = { label: null, defaultMethod: 'Bancont
 interface TemplateRow {
   id: string; kind: RecurringTemplate['kind']; label: string; amount: number | string; every: number;
   day: number | null; start_month: string; method: string; category: string | null; on_payday: boolean;
-  end_date: string | null;
+  end_date: string | null; start_date: string | null; replaces: string | null;
 }
 interface OperationRow {
   id: string; kind: Operation['kind']; date: string; label: string; category: string; method: string;
@@ -31,6 +31,7 @@ interface AmountRow { template_id: string; from_date: string; amount: number | s
 const toTemplate = (r: TemplateRow, amounts: AmountChange[] = []): RecurringTemplate => ({
   id: r.id, kind: r.kind, label: r.label, amount: Number(r.amount), amounts, every: r.every, day: r.day,
   startMonth: r.start_month, method: r.method, category: r.category, onPayday: r.on_payday, endDate: r.end_date,
+  startDate: r.start_date, replaces: r.replaces,
 });
 const toOperation = (r: OperationRow): Operation => ({
   id: r.id, kind: r.kind, date: r.date, label: r.label, category: r.category, method: r.method,
@@ -41,7 +42,9 @@ const toAccount = (r: AccountRow): Account => ({
 });
 const toOverride = (r: OverrideRow): Override => ({ templateId: r.template_id, dueDate: r.due_date, amount: Number(r.amount) });
 
-export type NewTemplate = Omit<RecurringTemplate, 'id' | 'amounts' | 'endDate'>;
+export type NewTemplate = Omit<RecurringTemplate, 'id' | 'amounts' | 'endDate' | 'startDate' | 'replaces'>;
+/** Champs d'un modèle modifiables (le type revenu/charge ne change pas). */
+export type TemplateChanges = Pick<RecurringTemplate, 'label' | 'every' | 'day' | 'startMonth' | 'method' | 'category'>;
 export type OperationInput = Omit<Operation, 'id'>;
 export type AccountInput = Pick<Account, 'label' | 'kind' | 'defaultMethod'>;
 
@@ -198,6 +201,43 @@ export class ExpensesStore {
     }));
   }
 
+  /**
+   * Modifie un modèle à partir de `fromDate` sans toucher aux périodes passées : l'ancien modèle s'arrête la veille,
+   * un nouveau modèle (montant `amount`) prend le relais. Les montants ajustés et changements de montant
+   * postérieurs à `fromDate` restent sur l'ancien modèle et ne s'appliquent plus.
+   */
+  async replaceTemplate(old: RecurringTemplate, changes: TemplateChanges, amount: number, fromDate: string) {
+    const { data, error } = await this.db
+      .from('recurring_templates')
+      .insert({
+        kind: old.kind, label: changes.label, amount, every: changes.every, day: changes.day, start_month: changes.startMonth,
+        method: changes.method, category: changes.category, on_payday: old.onPayday, start_date: fromDate, replaces: old.id,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    const created = toTemplate(data as TemplateRow);
+    const endDate = dayBefore(fromDate);
+    const stop = await this.db.from('recurring_templates').update({ end_date: endDate }).eq('id', old.id);
+    if (stop.error) {
+      // Sans l'arrêt de l'ancien, les deux modèles se chevaucheraient : on annule la création.
+      await this.db.from('recurring_templates').delete().eq('id', created.id);
+      throw stop.error;
+    }
+    this.patchTemplate(old.id, () => ({ endDate }));
+    this.templates.update((l) => [...l, created]);
+  }
+
+  /** Corrige un modèle sur place (il ne couvre encore aucune période passée). */
+  async updateTemplate(id: string, changes: TemplateChanges) {
+    const { error } = await this.db.from('recurring_templates').update({
+      label: changes.label, every: changes.every, day: changes.day, start_month: changes.startMonth,
+      method: changes.method, category: changes.category,
+    }).eq('id', id);
+    if (error) throw error;
+    this.patchTemplate(id, () => changes);
+  }
+
   /** Arrête un modèle : plus d'échéance après `endDate`, l'historique reste. */
   async stopTemplate(id: string, endDate: string) {
     const { error } = await this.db.from('recurring_templates').update({ end_date: endDate }).eq('id', id);
@@ -211,9 +251,16 @@ export class ExpensesStore {
 
   /** Suppression définitive (erreur de saisie) : le modèle disparaît aussi des périodes passées. */
   async removeTemplate(id: string) {
+    const previous = this.templates().find((t) => t.id === id)?.replaces;
     const { error } = await this.db.from('recurring_templates').delete().eq('id', id);
     if (error) throw error;
     this.templates.update((l) => l.filter((t) => t.id !== id));
+    // Supprimer une modification rétablit le modèle qu'elle remplaçait.
+    if (previous) {
+      const reopen = await this.db.from('recurring_templates').update({ end_date: null }).eq('id', previous);
+      if (reopen.error) throw reopen.error;
+      this.patchTemplate(previous, () => ({ endDate: null }));
+    }
     this.overrides.update((l) => l.filter((o) => o.templateId !== id));
   }
 

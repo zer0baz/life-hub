@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { FormsModule } from '@angular/forms';
 import { Icon } from '../../../core/icon';
 import { Toast } from '../../../core/toast';
-import { ExpensesStore } from '../data/expenses-store';
+import { ExpensesStore, TemplateChanges } from '../data/expenses-store';
 import { EXPENSE_CATEGORIES, FREQUENCIES, INCOME_COLOR, PAYMENT_METHODS, expenseCategory } from '../domain/constants';
 import { amountToInput, fmtDate, fmtLongDate, fmtMoney, parseAmount } from '../domain/format';
 import { RecurringTemplate, TemplateKind } from '../domain/models';
@@ -19,11 +19,10 @@ interface TemplateForm {
   category: string;
 }
 
-/** Changement de montant en cours de saisie pour un modèle. */
-interface AmountEdit {
+/** Modification en cours d'un modèle (même champs que la création, sans le type). */
+interface TemplateEdit extends Omit<TemplateForm, 'kind'> {
   id: string;
-  amount: string;
-  /** Période à partir de laquelle le nouveau montant s'applique. */
+  /** Période à partir de laquelle la modification s'applique. */
   from: 'current' | 'next';
 }
 
@@ -46,9 +45,6 @@ interface AmountEdit {
     .end { display: flex; justify-content: flex-end; }
     .table { min-width: 760px; }
     .actions { display: inline-flex; gap: 2px; justify-content: flex-end; }
-    .amount-edit { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 4px 0 8px; }
-    .amount-edit .field { width: 180px; }
-    .amount-edit .field-wide { width: 260px; }
     tr.stopped td { color: var(--ink-3); }
     .name { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
     .card .table th:first-child, .card .table td:first-child { padding-left: 0; }
@@ -205,36 +201,61 @@ export class Recurring {
     }
   }
 
-  // --- Changement de montant (versionné) ---
-  readonly amountEdit = signal<AmountEdit | null>(null);
+  // --- Modification (versionnée : les périodes passées ne changent pas) ---
+  readonly edit = signal<TemplateEdit | null>(null);
   readonly editError = signal('');
   readonly periodChoices = computed(() => {
     const p = this.store.current().period;
     return { current: p.title, next: periodFor(this.store.settings(), p.next).title };
   });
 
-  startAmountEdit(t: RecurringTemplate) {
+  startEdit(t: RecurringTemplate) {
     this.editError.set('');
-    this.amountEdit.set({ id: t.id, amount: amountToInput(amountAt(t, this.store.today())), from: 'current' });
+    this.edit.set({
+      id: t.id, label: t.label, amount: amountToInput(amountAt(t, this.store.today())), every: t.every,
+      day: String(t.day ?? 1), startMonth: t.startMonth, method: t.method, category: t.category ?? 'logement', from: 'current',
+    });
   }
 
-  patchAmountEdit(p: Partial<AmountEdit>) {
-    this.amountEdit.update((e) => (e ? { ...e, ...p } : e));
+  patchEdit(p: Partial<TemplateEdit>) {
+    this.edit.update((e) => (e ? { ...e, ...p } : e));
   }
 
-  async saveAmount() {
-    const e = this.amountEdit();
-    if (!e) return;
+  async saveEdit() {
+    const e = this.edit();
+    const t = e && this.store.templates().find((x) => x.id === e.id);
+    if (!e || !t) return;
     const amount = parseAmount(e.amount);
+    const day = parseInt(e.day, 10);
+    const isCharge = t.kind === 'charge';
+    if (!e.label.trim()) return this.editError.set('Ajoute un libellé.');
     if (!(amount > 0)) return this.editError.set('Indique un montant valide.');
+    if (isCharge && !(day >= 1 && day <= 31)) return this.editError.set("Le jour d'échéance doit être entre 1 et 31.");
     const p = this.store.current().period;
+    let fromDate = e.from === 'current' ? p.start : p.next;
+    // Un modèle déjà issu d'une modification ne couvre rien avant son début : on le corrige depuis ce début.
+    if (t.startDate && fromDate < t.startDate) fromDate = t.startDate;
+    const changes: TemplateChanges = {
+      label: e.label.trim(), every: e.every, day: isCharge ? day : null, method: e.method, category: isCharge ? e.category : null,
+      // Même fréquence : on garde le cycle d'origine ; sinon le premier mois choisi (ou celui de la date d'effet en mensuel).
+      startMonth: e.every === t.every ? t.startMonth : e.every === 1 ? fromDate.slice(0, 7) : e.startMonth || fromDate.slice(0, 7),
+    };
+    const changed = (Object.keys(changes) as (keyof TemplateChanges)[]).some((k) => changes[k] !== t[k]);
+    const amountChanged = amount !== amountAt(t, fromDate);
+    if (!changed && !amountChanged) return this.edit.set(null);
     this.busy.set(true);
     try {
-      await this.store.setTemplateAmount(e.id, e.from === 'current' ? p.start : p.next, amount);
-      this.amountEdit.set(null);
-      this.toast.show('Montant mis à jour, les périodes précédentes ne changent pas');
+      if (changed && t.startDate !== fromDate) {
+        await this.store.replaceTemplate(t, changes, amount, fromDate);
+      } else {
+        if (changed) await this.store.updateTemplate(t.id, changes);
+        if (amountChanged) await this.store.setTemplateAmount(t.id, fromDate, amount);
+      }
+      this.edit.set(null);
+      this.toast.show('Modèle modifié, les périodes précédentes ne changent pas');
     } catch (err) {
       this.editError.set((err as Error).message);
+      await this.store.load();
     } finally {
       this.busy.set(false);
     }
@@ -251,8 +272,10 @@ export class Recurring {
   }
 
   async remove(t: RecurringTemplate) {
-    const msg = `Supprimer définitivement « ${t.label} » ? Ses occurrences disparaîtront aussi des périodes passées.`
-      + (t.endDate ? '' : '\nPour simplement ne plus la compter, utilise plutôt « Arrêter ».');
+    const msg = t.replaces
+      ? `Supprimer la modification de « ${t.label} » ? La version précédente du modèle reprend à la place.`
+      : `Supprimer définitivement « ${t.label} » ? Ses occurrences disparaîtront aussi des périodes passées.`
+        + (t.endDate ? '' : '\nPour simplement ne plus la compter, utilise plutôt « Arrêter ».');
     if (!confirm(msg)) return;
     try {
       await this.store.removeTemplate(t.id);
@@ -265,7 +288,11 @@ export class Recurring {
   readonly rows = computed(() => {
     const current = this.store.current().period;
     const today = this.store.today();
-    return [...this.store.templates()]
+    const all = this.store.templates();
+    // Un modèle remplacé par une modification n'est plus affiché : ses échéances passées restent dans les périodes.
+    const replaced = new Set(all.map((t) => t.replaces).filter((id) => id != null));
+    return all
+      .filter((t) => !replaced.has(t.id))
       .sort((a, b) => Number(!!a.endDate) - Number(!!b.endDate) || (a.kind === b.kind ? 0 : a.kind === 'income' ? -1 : 1))
       .map((t) => {
         const isIncome = t.kind === 'income';
